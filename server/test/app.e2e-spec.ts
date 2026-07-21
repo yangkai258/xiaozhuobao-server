@@ -890,4 +890,84 @@ describe('App API', () => {
     prisma.customer.findFirst = originalFind;
   });
 
+  it('validates each biz kind payload shape and money strings', async () => {
+    const invalid = await request(httpServer)
+      .post('/api/v1/biz/MEETING')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('Idempotency-Key', randomUUID())
+      .send({});
+    expect(invalid.status).toBe(400);
+    expect((invalid.body as unknown as Envelope<null>).code).toBe(40000);
+
+    const badMoney = await request(httpServer)
+      .post('/api/v1/biz/SUBSIDY')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('Idempotency-Key', randomUUID())
+      .send({
+        customerId: 'ck_001',
+        subsidyType: '门店装修',
+        amountCents: 'abc',
+        periodStart: '2026-07-01',
+      });
+    expect(badMoney.status).toBe(400);
+    expect((badMoney.body as unknown as Envelope<null>).code).toBe(40000);
+
+    const badDate = await request(httpServer)
+      .post('/api/v1/biz/ADVERT')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('Idempotency-Key', randomUUID())
+      .send({
+        customerId: 'ck_001',
+        channel: '门店大屏',
+        periodStart: '2026-08-01',
+        periodEnd: '2026-07-01',
+        budgetCents: '500000',
+      });
+    expect(badDate.status).toBe(400);
+    expect((badDate.body as unknown as Envelope<null>).code).toBe(40000);
+
+    const stocking = await request(httpServer)
+      .post('/api/v1/biz/STOCKING')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('Idempotency-Key', randomUUID())
+      .send({
+        customerId: 'ck_001',
+        items: [{ productId: 'prod_001', qty: 3 }],
+        totalQty: 3,
+        expectedDate: '2026-07-21',
+      })
+      .expect(201);
+
+    const advert = await request(httpServer)
+      .post('/api/v1/biz/ADVERT')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('Idempotency-Key', randomUUID())
+      .send({
+        customerId: 'ck_001',
+        channel: '门店大屏',
+        periodStart: '2026-07-01',
+        periodEnd: '2026-08-01',
+        budgetCents: '500000',
+      })
+      .expect(201);
+
+    const rental = await request(httpServer)
+      .post('/api/v1/biz/RENTAL')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('Idempotency-Key', randomUUID())
+      .send({
+        customerId: 'ck_001',
+        itemName: '脚手架',
+        startDate: '2026-07-01',
+        endDate: '2026-07-15',
+        dailyRateCents: '150000',
+      })
+      .expect(201);
+
+    expect(stocking.status).toBe(201);
+    expect(advert.status).toBe(201);
+    expect(rental.status).toBe(201);
+  });
+
+
 });

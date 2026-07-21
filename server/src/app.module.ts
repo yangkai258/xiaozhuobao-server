@@ -8,6 +8,8 @@ import { RolesGuard } from './common/guards/roles.guard';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { IdempotencyInterceptor } from './common/interceptors/idempotency.interceptor';
 import { CacheControlInterceptor } from './common/interceptors/cache-control.interceptor';
+import { RequestLogInterceptor } from './common/interceptors/request-log.interceptor';
+import { StructuredLogger } from './common/logger/structured-logger';
 import { TraceIdMiddleware } from './common/middleware/trace-id.middleware';
 import { validateEnvironment } from './config/env';
 import { PrismaModule } from './infra/prisma/prisma.module';
@@ -53,11 +55,13 @@ import { StorageModule } from './modules/storage/storage.module';
     StorageModule,
   ],
   providers: [
+    StructuredLogger,
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
     { provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },
     { provide: APP_INTERCEPTOR, useClass: CacheControlInterceptor },
     { provide: APP_INTERCEPTOR, useClass: IdempotencyInterceptor },
+    { provide: APP_INTERCEPTOR, useClass: RequestLogInterceptor },
     { provide: APP_FILTER, useClass: ApiExceptionFilter },
   ],
 })

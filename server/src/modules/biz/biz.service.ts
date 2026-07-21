@@ -1,9 +1,10 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { BizKind, Prisma } from '@prisma/client';
+import { ZodError } from 'zod';
 import { ApiException } from '../../common/filters/api.exception';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { canTransitionBiz } from './biz-state-machine';
-import { BizQuery, BizStatusInput, parseBizPayload } from './biz.schemas';
+import { BizPayloadByKind, BizQuery, BizStatusInput, parseBizPayload } from './biz.schemas';
 
 @Injectable()
 export class BizService {
@@ -41,7 +42,7 @@ export class BizService {
   }
 
   async create(kind: BizKind, rawPayload: unknown, userId: string): Promise<unknown> {
-    const payload = parseBizPayload(kind, rawPayload);
+    const payload = this.parsePayload(kind, rawPayload);
     const customerId = typeof payload.customerId === 'string' ? payload.customerId : undefined;
     if (customerId) {
       const exists = await this.prisma.customer.count({ where: { id: customerId, isDeleted: false } });
@@ -52,7 +53,7 @@ export class BizService {
     return this.prisma.bizSubmission.create({
       data: {
         kind,
-        payload: payload as Prisma.InputJsonObject,
+        payload: payload as unknown as Prisma.InputJsonObject,
         customerId,
         createdById: userId,
         version: 1,
@@ -76,5 +77,19 @@ export class BizService {
       throw new ApiException(10009, 'version 不匹配，请刷新后重试', HttpStatus.CONFLICT);
     }
     return this.prisma.bizSubmission.findFirst({ where: { id, isDeleted: false } });
+  }
+
+  private parsePayload(kind: BizKind, rawPayload: unknown): BizPayloadByKind[typeof kind] {
+    try {
+      return parseBizPayload(kind, rawPayload);
+    } catch (error) {
+      if (error instanceof ZodError) {
+        const message = error.issues
+          .map((issue) => (issue.path.length > 0 ? issue.path.join('.') + ': ' : '') + issue.message)
+          .join('; ');
+        throw new ApiException(40000, message || 'payload 非法', HttpStatus.BAD_REQUEST);
+      }
+      throw error;
+    }
   }
 }
