@@ -1,0 +1,351 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                  String          @id @default(cuid())
+  username            String          @unique
+  passwordHash        String
+  mobile              String          @unique
+  displayName         String
+  avatarUrl           String?
+  role                Role            @default(SALES)
+  region              String?
+  isActive            Boolean         @default(true)
+  refreshTokenHash    String?         @unique
+  refreshTokenExpires DateTime?
+  failedLoginAttempts Int             @default(0)
+  lockedUntil         DateTime?
+  lastLoginAt         DateTime?
+  version             Int             @default(0)
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+  orders              Order[]
+  aftersales          Aftersale[]
+  follows             FollowTask[]
+  bizSubmissions      BizSubmission[]
+}
+
+enum Role {
+  SALES
+  REGION_MGR
+  FINANCE
+  ADMIN
+}
+
+model Customer {
+  id          String          @id @default(cuid())
+  bp          String          @unique
+  code        String          @unique
+  name        String
+  cat         String
+  status      String
+  contact     String
+  addr        String
+  regionBp    String?
+  isDeleted   Boolean         @default(false)
+  deletedAt   DateTime?
+  version     Int             @default(0)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  createdById String?
+  updatedById String?
+  projects    Project[]
+  contracts   Contract[]
+  orders      Order[]
+  aftersales  Aftersale[]
+  follows     FollowTask[]
+  bizSubs     BizSubmission[]
+
+  @@index([isDeleted, status])
+  @@index([regionBp])
+  @@index([name])
+}
+
+model Project {
+  id         String     @id @default(cuid())
+  no         String     @unique
+  name       String
+  customerId String
+  customer   Customer   @relation(fields: [customerId], references: [id])
+  status     String
+  amtCents   BigInt
+  isDeleted  Boolean    @default(false)
+  deletedAt  DateTime?
+  version    Int        @default(0)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  contracts  Contract[]
+
+  @@index([isDeleted, customerId])
+}
+
+model Contract {
+  id         String    @id @default(cuid())
+  no         String    @unique
+  name       String
+  projectId  String?
+  project    Project?  @relation(fields: [projectId], references: [id])
+  customerId String
+  customer   Customer  @relation(fields: [customerId], references: [id])
+  signedBy   String?
+  status     String
+  amtCents   BigInt
+  fileUrl    String?
+  isDeleted  Boolean   @default(false)
+  deletedAt  DateTime?
+  version    Int       @default(0)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([isDeleted, status])
+  @@index([customerId])
+}
+
+model Product {
+  id          String      @id @default(cuid())
+  no          String      @unique
+  name        String
+  spec        String
+  cat         String
+  stock       Int         @default(0)
+  reservedQty Int         @default(0)
+  priceCents  Int
+  unit        String
+  isActive    Boolean     @default(true)
+  isDeleted   Boolean     @default(false)
+  deletedAt   DateTime?
+  version     Int         @default(0)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  orderItems  OrderItem[]
+
+  @@index([isDeleted, cat])
+}
+
+model Order {
+  id               String      @id @default(cuid())
+  no               String      @unique
+  customerId       String
+  customer         Customer    @relation(fields: [customerId], references: [id])
+  amtCents         BigInt
+  status           OrderStatus @default(DRAFT)
+  qty              String
+  orderDate        DateTime
+  expectedShipDate DateTime?
+  address          String
+  createdById      String
+  createdBy        User        @relation(fields: [createdById], references: [id])
+  isDeleted        Boolean     @default(false)
+  deletedAt        DateTime?
+  version          Int         @default(0)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  items            OrderItem[]
+  logs             OrderLog[]
+  aftersales       Aftersale[]
+
+  @@index([isDeleted, status, orderDate])
+  @@index([customerId])
+  @@index([createdById])
+}
+
+enum OrderStatus {
+  DRAFT
+  PENDING_CONFIRM
+  CONFIRMED
+  SHIPPED
+  COMPLETED
+  CANCELLED
+}
+
+model OrderItem {
+  id         String  @id @default(cuid())
+  orderId    String
+  order      Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product @relation(fields: [productId], references: [id])
+  qty        Int
+  priceCents Int
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+model OrderLog {
+  id      String   @id @default(cuid())
+  orderId String
+  order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  action  String
+  actor   String
+  at      DateTime @default(now())
+  remark  String?
+
+  @@index([orderId, at])
+}
+
+model Aftersale {
+  id          String          @id @default(cuid())
+  no          String          @unique
+  orderId     String
+  order       Order           @relation(fields: [orderId], references: [id])
+  material    String
+  reason      AftersaleReason
+  status      AftersaleStatus @default(PENDING_OA)
+  occurredAt  DateTime
+  images      String[]
+  oaFlowId    String?
+  createdById String
+  createdBy   User            @relation(fields: [createdById], references: [id])
+  customerId  String
+  customer    Customer        @relation(fields: [customerId], references: [id])
+  isDeleted   Boolean         @default(false)
+  deletedAt   DateTime?
+  version     Int             @default(0)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([isDeleted, status])
+  @@index([orderId])
+  @@index([customerId])
+}
+
+enum AftersaleReason {
+  QUALITY
+  WRONG_GOODS
+  DAMAGED
+  OTHER
+}
+
+enum AftersaleStatus {
+  PENDING_OA
+  SAP_CREATED
+  IN_HANDLING
+  CLOSED
+  REJECTED
+}
+
+model FollowTask {
+  id         String       @id @default(cuid())
+  userId     String
+  user       User         @relation(fields: [userId], references: [id])
+  customerId String?
+  customer   Customer?    @relation(fields: [customerId], references: [id])
+  kind       FollowKind
+  title      String
+  subtitle   String?
+  node       String
+  dueAt      DateTime?
+  status     FollowStatus @default(PENDING)
+  isDeleted  Boolean      @default(false)
+  deletedAt  DateTime?
+  version    Int          @default(0)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  @@index([userId, status])
+  @@index([dueAt])
+}
+
+enum FollowKind {
+  APPROVAL
+  INQUIRY
+  AFTERSALE
+  GENERAL
+}
+
+enum FollowStatus {
+  PENDING
+  IN_PROGRESS
+  DONE
+  CANCELLED
+}
+
+model BizSubmission {
+  id          String     @id @default(cuid())
+  kind        BizKind
+  payload     Json
+  status      BizStatus  @default(DRAFT)
+  customerId  String?
+  customer    Customer?  @relation(fields: [customerId], references: [id])
+  oaFlowId    String?
+  createdById String
+  createdBy   User       @relation(fields: [createdById], references: [id])
+  isDeleted   Boolean    @default(false)
+  deletedAt   DateTime?
+  version     Int        @default(0)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([kind, isDeleted, status])
+  @@index([customerId])
+  @@index([createdById])
+}
+
+enum BizKind {
+  MEETING
+  STOCKING
+  SHIPMENT
+  ADVERT
+  STORE
+  SUBSIDY
+  RENTAL
+  COMPLAINT
+}
+
+enum BizStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  REJECTED
+  CLOSED
+}
+
+model Dict {
+  id       String  @id @default(cuid())
+  kind     String
+  code     String
+  label    String
+  sort     Int     @default(0)
+  isActive Boolean @default(true)
+
+  @@unique([kind, code])
+  @@index([kind, isActive])
+}
+
+model IdempotencyRecord {
+  key          String   @id
+  userId       String
+  method       String
+  path         String
+  bodyHash     String
+  statusCode   Int
+  responseBody Json
+  createdAt    DateTime @default(now())
+  expiresAt    DateTime
+
+  @@index([expiresAt])
+}
+model StoredFile {
+  id           String   @id @default(cuid())
+  objectKey    String   @unique
+  originalName String
+  mimeType     String
+  sizeBytes    Int
+  driver       String
+  storageUrl   String
+  uploadedById String
+  isDeleted    Boolean  @default(false)
+  deletedAt    DateTime?
+  createdAt    DateTime @default(now())
+  expiresAt    DateTime?
+
+  @@index([uploadedById, isDeleted])
+  @@index([expiresAt])
+}
+
