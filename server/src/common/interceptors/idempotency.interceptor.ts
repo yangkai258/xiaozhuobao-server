@@ -8,6 +8,7 @@ import {
 import { createHash } from 'node:crypto';
 import { Response } from 'express';
 import { firstValueFrom, from, Observable } from 'rxjs';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { ApiException } from '../filters/api.exception';
 import { ApiRequest } from '../types';
@@ -29,8 +30,20 @@ interface InFlightRequest extends RequestIdentity {
   promise: Promise<StoredResult>;
 }
 
+interface StoredRecord extends RequestIdentity {
+  statusCode: number;
+  responseBody: unknown;
+  expiresAt: Date;
+}
+
 const writeMethods = new Set(['POST', 'PATCH', 'DELETE']);
 const uuidV4Pattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const TTL_MS = 24 * 60 * 60 * 1000;
+const PENDING_SENTINEL = -1;
+// ponytail: 用 Prisma IdempotencyRecord 的 unique 约束做跨进程互斥，省去 Redis 依赖。
+// 流程：INSERT 占位（statusCode=-1）→ 执行下游 → UPDATE 覆盖 sentinel。
+// P2002 触发方 spin-wait 读表直到拿到 statusCode !== -1 的最终结果再 replay。
+// 上限：spin 50ms x 100 ~= 5s；慢下游/跨区部署换 listen/notify 或 Redis pub/sub。
 
 @Injectable()
 export class IdempotencyInterceptor implements NestInterceptor {
@@ -66,7 +79,7 @@ export class IdempotencyInterceptor implements NestInterceptor {
     next: CallHandler,
   ): Promise<unknown> {
     const existing = await this.prisma.idempotencyRecord.findUnique({ where: { key } });
-    if (existing && existing.expiresAt > new Date()) {
+    if (existing && existing.expiresAt > new Date() && existing.statusCode !== PENDING_SENTINEL) {
       this.assertSameRequest(identity, existing);
       response.status(existing.statusCode).setHeader('Idempotent-Replay', 'true');
       return existing.responseBody;
@@ -80,7 +93,6 @@ export class IdempotencyInterceptor implements NestInterceptor {
       return result.data;
     }
 
-    // ponytail: this in-process lock covers the documented single-instance phase; replace it with Redis SETNX before scaling out.
     const promise = this.executeAndStore(key, identity, response, next);
     this.inFlight.set(key, { ...identity, promise });
     try {
@@ -96,25 +108,64 @@ export class IdempotencyInterceptor implements NestInterceptor {
     response: Response,
     next: CallHandler,
   ): Promise<StoredResult> {
-    const data: unknown = await firstValueFrom(next.handle() as Observable<unknown>);
-    const statusCode = response.statusCode;
-    await this.prisma.idempotencyRecord.upsert({
-      where: { key },
-      update: {
-        ...identity,
-        statusCode,
-        responseBody: toPrismaJson(data),
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-      },
-      create: {
-        key,
-        ...identity,
-        statusCode,
-        responseBody: toPrismaJson(data),
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-      },
-    });
-    return { statusCode, data };
+    try {
+      await this.prisma.idempotencyRecord.create({
+        data: {
+          key,
+          ...identity,
+          statusCode: PENDING_SENTINEL,
+          responseBody: Prisma.JsonNull,
+          expiresAt: new Date(Date.now() + TTL_MS),
+        },
+      });
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        const stored = await this.waitForFinalResult(key);
+        if (!stored) {
+          throw new ApiException(50301, '幂等锁等待超时', HttpStatus.SERVICE_UNAVAILABLE);
+        }
+        this.assertSameRequest(identity, stored);
+        response.status(stored.statusCode).setHeader('Idempotent-Replay', 'true');
+        return { statusCode: stored.statusCode, data: stored.responseBody };
+      }
+      throw e;
+    }
+
+    try {
+      const data: unknown = await firstValueFrom(next.handle() as Observable<unknown>);
+      const statusCode = response.statusCode;
+      await this.prisma.idempotencyRecord.update({
+        where: { key },
+        data: {
+          statusCode,
+          responseBody: toPrismaJson(data),
+          expiresAt: new Date(Date.now() + TTL_MS),
+        },
+      });
+      return { statusCode, data };
+    } catch (e) {
+      // ponytail: 下游失败时清理 sentinel 占位，让重试有机会接管同一 key
+      await this.prisma.idempotencyRecord
+        .deleteMany({ where: { key, statusCode: PENDING_SENTINEL } })
+        .catch(() => undefined);
+      throw e;
+    }
+  }
+
+  // ponytail: 50ms x 100 ~= 5s 上限；慢下游/跨区换 listen/notify 或 Redis pub/sub
+  private async waitForFinalResult(key: string): Promise<StoredRecord | null> {
+    for (let i = 0; i < 100; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      // eslint-disable-next-line no-await-in-loop
+      const record = await this.prisma.idempotencyRecord.findUnique({ where: { key } });
+      if (!record || record.expiresAt <= new Date()) {
+        return null;
+      }
+      if (record.statusCode !== PENDING_SENTINEL) {
+        return record;
+      }
+    }
+    return null;
   }
 
   private assertSameRequest(identity: RequestIdentity, stored: RequestIdentity): void {

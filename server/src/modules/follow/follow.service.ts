@@ -1,15 +1,26 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { FollowStatus } from '@prisma/client';
+import { FollowStatus, Prisma } from '@prisma/client';
 import { ApiException } from '../../common/filters/api.exception';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { FollowQuery } from './follow.schemas';
+
+const followTaskSelect = {
+  id: true,
+  kind: true,
+  title: true,
+  subtitle: true,
+  node: true,
+  dueAt: true,
+  status: true,
+  version: true,
+} satisfies Prisma.FollowTaskSelect;
 
 @Injectable()
 export class FollowService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findTodos(userId: string, query: FollowQuery): Promise<unknown> {
-    const where = {
+    const where: Prisma.FollowTaskWhereInput = {
       userId,
       isDeleted: false,
       ...(query.filter ? { status: query.filter } : {}),
@@ -17,17 +28,12 @@ export class FollowService {
     const [items, grouped] = await Promise.all([
       this.prisma.followTask.findMany({
         where,
-        select: {
-          id: true,
-          kind: true,
-          title: true,
-          subtitle: true,
-          node: true,
-          dueAt: true,
-          status: true,
-          version: true,
-        },
-        orderBy: [{ dueAt: 'asc' }, { createdAt: 'desc' }],
+        select: followTaskSelect,
+        orderBy: [{ dueAt: 'asc' }, { createdAt: 'desc' }, { id: 'desc' }],
+        ...(query.cursor
+          ? { cursor: { id: query.cursor }, skip: 1 }
+          : { skip: (query.page - 1) * query.size }),
+        take: query.size,
       }),
       this.prisma.followTask.groupBy({
         by: ['status'],
@@ -44,6 +50,10 @@ export class FollowService {
         inProgress: String(counts.get(FollowStatus.IN_PROGRESS) ?? 0),
         done: String(counts.get(FollowStatus.DONE) ?? 0),
       },
+      page: query.page,
+      size: query.size,
+      hasMore: items.length === query.size,
+      nextCursor: items.length === query.size ? items.at(-1)?.id ?? null : null,
     };
   }
 

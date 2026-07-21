@@ -393,13 +393,25 @@ describe('App API', () => {
         findUnique: jest.fn((input: { where: { key: string } }) =>
           Promise.resolve(idempotencyRecords.get(input.where.key) ?? null),
         ),
-        upsert: jest.fn(
-          (input: { where: { key: string }; create: Omit<IdempotencyRecordValue, 'createdAt'> }) => {
-            const record = { ...input.create, createdAt: new Date() };
-            idempotencyRecords.set(input.where.key, record);
+        create: jest.fn(
+          (input: { data: Omit<IdempotencyRecordValue, 'createdAt'> }) => {
+            const record = { ...input.data, createdAt: new Date() };
+            idempotencyRecords.set(input.data.key, record);
             return Promise.resolve(record);
           },
         ),
+        update: jest.fn(
+          (input: { where: { key: string }; data: { statusCode: number; responseBody: unknown; expiresAt: Date } }) => {
+            const existing = idempotencyRecords.get(input.where.key);
+            if (!existing) {
+              throw new Error(`idempotency update miss: ${input.where.key}`);
+            }
+            const updated = { ...existing, ...input.data };
+            idempotencyRecords.set(input.where.key, updated);
+            return Promise.resolve(updated);
+          },
+        ),
+        deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
       $transaction: jest.fn(
         (

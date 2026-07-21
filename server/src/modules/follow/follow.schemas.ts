@@ -3,6 +3,9 @@ import { z } from 'zod';
 
 export const followQuerySchema = z.object({
   filter: z.nativeEnum(FollowStatus).optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  size: z.coerce.number().int().min(1).max(100).default(20),
+  cursor: z.string().trim().optional(),
 });
 
 export const completeFollowSchema = z.object({
