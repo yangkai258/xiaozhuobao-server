@@ -3,14 +3,27 @@ import { ref, computed, onMounted } from 'vue';
 import FabAI from '../../components/FabAI/FabAI.vue';
 import IconBox from '../../components/IconBox/IconBox.vue';
 import { useMeStore } from '../../stores';
+import { formatCents } from '../../utils/amount';
+import { logout } from '../../api/client';
 
 const meStore = useMeStore();
 onMounted(() => { void meStore.load(); });
-const profile = computed(() => ({ name: meStore.profile?.displayName || '加载中', role: meStore.profile?.role || '', avatar: meStore.profile?.avatar || 'U', metrics: [
-  { label: '本月 GMV', value: '148,283' },
-  { label: '新增订单', value: '28' },
-  { label: '完成率',   value: '—' },
-] }));
+const profile = computed(() => {
+  const m = meStore.metrics;
+  const gmv = m ? formatCents(m.gmvCents) : '—';
+  const orderCount = m ? String(m.orderCount ?? 0) : '—';
+  const completion = m && m.completion > 0 ? (m.completion * 100).toFixed(0) + '%' : '待对接';
+  return {
+    name: meStore.profile?.displayName || '加载中',
+    role: meStore.profile?.role || '',
+    avatar: meStore.profile?.avatar || 'U',
+    metrics: [
+      { label: '本月 GMV', value: gmv },
+      { label: '新增订单', value: orderCount },
+      { label: '完成率',   value: completion },
+    ],
+  };
+});
 
 const groups = [
   {
@@ -39,10 +52,17 @@ const groups = [
   },
 ];
 
-const showLogout = ref(false);
-
 function onItem(id: string) {
+  if (id === 'settings') {
+    uni.navigateTo({ url: '/pages/login/index' });
+    return;
+  }
   uni.showToast({ title: id + ' · 即将接入', icon: 'none' });
+}
+
+async function onLogout() {
+  await logout();
+  uni.reLaunch({ url: '/pages/login/index' });
 }
 </script>
 
@@ -100,7 +120,7 @@ function onItem(id: string) {
       </view>
     </view>
 
-    <view class="logout-bar" @click="showLogout = true">退出登录</view>
+    <view class="logout-bar" @click="onLogout">退出登录</view>
   </view>
     <FabAI />
   </template>

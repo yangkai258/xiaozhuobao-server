@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue';
-import { BIZ } from '../../mock/data';
 import IconBox from '../../components/IconBox/IconBox.vue';
 import { useWorkbenchStore } from '../../stores';
 
@@ -15,22 +14,11 @@ const pathToIcon: Record<string, string> = {
   '/pages/complaint-new/index': 'complaint',
 };
 
-const bizCounts: Record<string, { count: string; delta?: string }> = {
-  '/pages/meeting-new/index':   { count: '4',  delta: '+2' },
-  '/pages/stocking-new/index':  { count: '12', delta: '-3' },
-  '/pages/shipment-new/index':  { count: '8',  delta: '+1' },
-  '/pages/advert-new/index':    { count: '3' },
-  '/pages/store-new/index':     { count: '6',  delta: '+1' },
-  '/pages/subsidy-new/index':   { count: '2' },
-  '/pages/rental-new/index':    { count: '5' },
-  '/pages/complaint-new/index': { count: '1',  delta: '+1' },
-};
-
-const enrichedBiz = computed(() => BIZ.map(b => ({
+const enrichedBiz = computed(() => workbenchStore.biz.map(b => ({
   ...b,
   icon: pathToIcon[b.path] || 'spoke',
-  count: bizCounts[b.path]?.count || '0',
-  delta: bizCounts[b.path]?.delta || '',
+  count: String(b.count ?? '0'),
+  pending: String(b.pending ?? '0'),
 })));
 
 const builtPaths = new Set<string>([
@@ -64,6 +52,7 @@ const workbenchStore = useWorkbenchStore();
 onMounted(() => { void workbenchStore.load(); });
 const todos = computed<Todo[]>(() => workbenchStore.todos.length ? workbenchStore.todos.map((t, index) => ({ no: 'todo-' + index, title: t.h, cust: t.sub, amt: '—', status: t.due, date: '', priority: 'mid', icon: 'follow' })) : fallbackTodos);
 
+const pendingTotal = computed(() => workbenchStore.biz.reduce((s, b) => s + (Number(b.pending) || 0), 0));
 const PRIORITY = {
   high: { color: 'var(--c-accent)', label: '高优' },
   mid:  { color: 'var(--c-warn)',   label: '中优' },
@@ -95,7 +84,7 @@ const PRIORITY = {
     <view class="section">
       <view class="section-head">
         <text class="section-title">业务</text>
-        <text class="section-meta">8 项 · 2 待办</text>
+        <text class="section-meta">{{ workbenchStore.biz.length }} 项 · {{ pendingTotal }} 待办</text>
       </view>
       <view class="biz-grid">
         <view
@@ -115,7 +104,7 @@ const PRIORITY = {
           </view>
           <view class="biz-stat">
             <text class="biz-count">{{ b.count }}</text>
-            <text v-if="b.delta" class="biz-delta">{{ b.delta }}</text>
+            <text v-if="b.pending && b.pending !== '0'" class="biz-delta">待办 {{ b.pending }}</text>
           </view>
         </view>
       </view>

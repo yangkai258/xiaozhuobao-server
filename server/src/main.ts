@@ -1,3 +1,6 @@
+// ponytail: tracing.ts must be imported BEFORE any NestJS / http / express module is
+// required so NodeSDK can monkey-patch them. TS keeps the import order, so this stays first.
+import './tracing';
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { json, urlencoded } from 'express';

@@ -13,6 +13,8 @@ import {
   bizQuerySchema,
   BizStatusInput,
   bizStatusSchema,
+  bizSummaryQuerySchema,
+  BizSummaryQuery,
 } from './biz.schemas';
 import { BizService } from './biz.service';
 
@@ -21,6 +23,15 @@ import { BizService } from './biz.service';
 @Controller('biz')
 export class BizController {
   constructor(private readonly bizService: BizService) {}
+
+  @Get('summary')
+  @ApiOperation({ summary: '业务表单按 kind/status 聚合' })
+  summary(
+    @Query(new ZodValidationPipe(bizSummaryQuerySchema)) query: BizSummaryQuery,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<unknown> {
+    return this.bizService.summary(query, user.id);
+  }
 
   @Get()
   @ApiOperation({ summary: '业务表单分页列表' })

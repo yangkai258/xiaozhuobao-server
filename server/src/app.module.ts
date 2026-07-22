@@ -27,6 +27,7 @@ import { OrdersModule } from './modules/orders/orders.module';
 import { ProductsModule } from './modules/products/products.module';
 import { ProjectsModule } from './modules/projects/projects.module';
 import { StorageModule } from './modules/storage/storage.module';
+import { ObservabilityModule } from './observability/observability.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { StorageModule } from './modules/storage/storage.module';
         secret: config.getOrThrow<string>('JWT_SECRET'),
       }),
     }),
+    ObservabilityModule,
     PrismaModule,
     AuthModule,
     CustomersModule,

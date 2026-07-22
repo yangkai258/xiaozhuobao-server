@@ -267,20 +267,20 @@ enum FollowStatus {
 }
 
 model BizSubmission {
-  id          String     @id @default(cuid())
+  id          String    @id @default(cuid())
   kind        BizKind
   payload     Json
-  status      BizStatus  @default(DRAFT)
+  status      BizStatus @default(DRAFT)
   customerId  String?
-  customer    Customer?  @relation(fields: [customerId], references: [id])
+  customer    Customer? @relation(fields: [customerId], references: [id])
   oaFlowId    String?
   createdById String
-  createdBy   User       @relation(fields: [createdById], references: [id])
-  isDeleted   Boolean    @default(false)
+  createdBy   User      @relation(fields: [createdById], references: [id])
+  isDeleted   Boolean   @default(false)
   deletedAt   DateTime?
-  version     Int        @default(0)
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  version     Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@index([kind, isDeleted, status])
   @@index([customerId])
@@ -331,21 +331,21 @@ model IdempotencyRecord {
 
   @@index([expiresAt])
 }
+
 model StoredFile {
-  id           String   @id @default(cuid())
-  objectKey    String   @unique
+  id           String    @id @default(cuid())
+  objectKey    String    @unique
   originalName String
   mimeType     String
   sizeBytes    Int
   driver       String
   storageUrl   String
   uploadedById String
-  isDeleted    Boolean  @default(false)
+  isDeleted    Boolean   @default(false)
   deletedAt    DateTime?
-  createdAt    DateTime @default(now())
+  createdAt    DateTime  @default(now())
   expiresAt    DateTime?
 
   @@index([uploadedById, isDeleted])
   @@index([expiresAt])
 }
-

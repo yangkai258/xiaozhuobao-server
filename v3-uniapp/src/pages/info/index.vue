@@ -1,25 +1,14 @@
 <script setup lang="ts">
 import FabAI from '../../components/FabAI/FabAI.vue';
 import { ref, computed, onMounted } from 'vue';
-import StatusTag from '../../components/StatusTag/StatusTag.vue';
 import IconBox from '../../components/IconBox/IconBox.vue';
 import { useInfoStore } from '../../stores';
-
-const PROJECTS = [
-  { name: '浦东机场航站楼防水工程',     no: 'PRJ-2026-012', status: '已生效', meta: '上海建工建材 · ¥580,000', tag: 'project' },
-  { name: '深圳南方装饰科技园项目',     no: 'PRJ-2026-008', status: '已生效', meta: '深圳南方装饰 · ¥320,000', tag: 'project' },
-  { name: '广州雄驰材料旗舰店项目',     no: 'PRJ-2026-005', status: '审批中', meta: '广州雄驰材料 · ¥120,000', tag: 'project' },
-];
-const CONTRACTS = [
-  { name: '上海建工 · 浦东机场防水供货合同', no: 'HT-2026-012', status: '已生效', meta: '签约主体 · 卓宝科技 · ¥580,000', tag: 'contract' },
-  { name: '深圳南方 · 科技园项目合同',       no: 'HT-2026-008', status: '已生效', meta: '签约主体 · 深圳卓宝 · ¥320,000', tag: 'contract' },
-  { name: '广州雄驰材料 · 框架协议',         no: 'HT-2026-005', status: '审批中', meta: '签约主体 · 卓宝科技 · 待盖章', tag: 'contract' },
-];
+import { formatCents } from '../../utils/amount';
 
 const tabs = computed(() => [
   { id: 'customers', label: '客商', count: infoStore.customers.length },
-  { id: 'projects',  label: '项目', count: 3 },
-  { id: 'contracts', label: '合同', count: 3 },
+  { id: 'projects',  label: '项目', count: infoStore.projects.length },
+  { id: 'contracts', label: '合同', count: infoStore.contracts.length },
   { id: 'products',  label: '商品', count: infoStore.products.length },
 ]);
 const view = ref('customers');
@@ -54,8 +43,16 @@ const list = computed(() => {
     name: c.name, no: c.code, status: c.status, meta: c.contact + ' · ' + c.addr,
     tag: 'customer',
   }));
-  if (view.value === 'projects')  return PROJECTS.map(p => ({ ...p, tag: 'project' }));
-  if (view.value === 'contracts') return CONTRACTS.map(c => ({ ...c, tag: 'contract' }));
+  if (view.value === 'projects')  return infoStore.projects.map(p => ({
+    name: p.name, no: p.no, status: p.status,
+    meta: p.customerName + ' · ¥' + formatCents(p.amtCents),
+    tag: 'project',
+  }));
+  if (view.value === 'contracts') return infoStore.contracts.map(c => ({
+    name: c.name, no: c.no, status: c.status,
+    meta: (c.signedBy || c.customerName) + ' · ¥' + formatCents(c.amtCents) + (c.fileUrl ? '' : ' · 待盖章'),
+    tag: 'contract',
+  }));
   if (view.value === 'products')  return infoStore.products.map(p => ({
     name: p.name, no: p.no,
     status: p.stock < 50 ? '库存预警' : '库存充足',

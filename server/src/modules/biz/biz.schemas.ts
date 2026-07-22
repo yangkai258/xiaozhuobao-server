@@ -1,4 +1,4 @@
-﻿import { BizKind, BizStatus } from '@prisma/client';
+import { BizKind, BizStatus } from '@prisma/client';
 import { z } from 'zod';
 
 const centsString = z.string().regex(/^\d{1,24}$/, '金额必须是整数分字符串');
@@ -131,6 +131,12 @@ const payloadSchemas: Record<BizKind, z.ZodTypeAny> = {
 };
 
 export const bizKindSchema = z.nativeEnum(BizKind);
+
+export const bizSummaryQuerySchema = z.object({
+  kind: z.nativeEnum(BizKind).optional(),
+});
+
+export type BizSummaryQuery = z.infer<typeof bizSummaryQuerySchema>;
 
 export const bizQuerySchema = z.object({
   kind: z.nativeEnum(BizKind).optional(),

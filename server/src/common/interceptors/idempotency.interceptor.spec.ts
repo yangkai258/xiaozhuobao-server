@@ -77,7 +77,7 @@ describe('IdempotencyInterceptor', () => {
         deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
     };
-    const interceptor = new IdempotencyInterceptor(prisma as never);
+    const interceptor = new IdempotencyInterceptor(prisma as never, { recordIdempotencyReplay: jest.fn() } as never);
     const res = makeRes();
 
     const next1 = { handle: jest.fn(() => of({ ok: true, n: 1 })) };
@@ -119,7 +119,7 @@ describe('IdempotencyInterceptor', () => {
         deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
     };
-    const interceptor = new IdempotencyInterceptor(prisma as never);
+    const interceptor = new IdempotencyInterceptor(prisma as never, { recordIdempotencyReplay: jest.fn() } as never);
     const res = makeRes();
     const next = { handle: jest.fn(() => of({ shouldNotRun: true })) };
 
@@ -139,7 +139,7 @@ describe('IdempotencyInterceptor', () => {
         deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
     };
-    const interceptor = new IdempotencyInterceptor(prisma as never);
+    const interceptor = new IdempotencyInterceptor(prisma as never, { recordIdempotencyReplay: jest.fn() } as never);
     const res = makeRes();
     res.statusCode = 500;
     const next = { handle: () => throwError(() => new Error('downstream boom')) };

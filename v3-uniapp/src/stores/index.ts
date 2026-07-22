@@ -1,6 +1,6 @@
-﻿import { defineStore } from 'pinia';
+import { defineStore } from 'pinia';
 import { ref } from 'vue';
-import { api_workbench, api_customers, api_products, api_orders, api_aftersales, api_me } from '../api/client';
+import { api_workbench, api_customers, api_products, api_orders, api_aftersales, api_projects, api_contracts, api_me } from '../api/client';
 import type { Customer, Product, Order, FollowTask, Biz, Utility } from '../mock/data';
 
 export const useWorkbenchStore = defineStore('workbench', () => {
@@ -11,12 +11,16 @@ export const useWorkbenchStore = defineStore('workbench', () => {
   const todos = ref<FollowTask[]>([]);
 
   async function load() {
-    const r = await api_workbench.load();
-    amt.value = r.data.amt;
-    delta.value = r.data.delta;
-    amtWeek.value = r.data.amtWeek;
-    biz.value = r.data.biz;
-    todos.value = r.data.todos;
+    try {
+      const r = await api_workbench.load();
+      amt.value = r.data.amt;
+      delta.value = r.data.delta;
+      amtWeek.value = r.data.amtWeek;
+      biz.value = r.data.biz;
+      todos.value = r.data.todos;
+    } catch {
+      // ponytail: tolerate partial failure (e.g. /follow/todos 401) so KPI card and biz grid still render
+    }
   }
 
   return { amt, delta, amtWeek, biz, todos, load };
@@ -27,38 +31,53 @@ export const useInfoStore = defineStore('info', () => {
   const products = ref<Product[]>([]);
   const orders = ref<Order[]>([]);
   const aftersales = ref<any[]>([]);
+  const projects = ref<any[]>([]);
+  const contracts = ref<any[]>([]);
 
   async function load() {
-    const [cu, pr, or, af] = await Promise.all([
-      api_customers.list(),
-      api_products.list(),
-      api_orders.list(),
-      api_aftersales.list(),
+    // ponytail: each list call is independent; fail-soft keeps the tabs that succeeded visible
+    const safe = async (fn: () => Promise<any>) => { try { return await fn(); } catch { return { data: { items: [] } }; } };
+    const [cu, pr, or, af, pj, ct] = await Promise.all([
+      safe(() => api_customers.list()),
+      safe(() => api_products.list()),
+      safe(() => api_orders.list()),
+      safe(() => api_aftersales.list()),
+      safe(() => api_projects.list()),
+      safe(() => api_contracts.list()),
     ]);
     customers.value = cu.data.items;
     products.value = pr.data.items;
     orders.value = or.data.items;
     aftersales.value = af.data.items;
+    projects.value = pj.data.items;
+    contracts.value = ct.data.items;
   }
 
-  return { customers, products, orders, aftersales, load };
+  return { customers, products, orders, aftersales, projects, contracts, load };
 });
 
 export const useMeStore = defineStore('me', () => {
   const profile = ref<{ id: string; displayName: string; role: string; region: string; avatar: string } | null>(null);
   const utilities = ref<Utility[]>([]);
+  const metrics = ref<{ gmvCents: string; orderCount: string; aftersaleCount: string; completion: number } | null>(null);
 
   async function load() {
-    const r = await api_me.profile();
+    // ponytail: split profile + reports so a 401 on /me/utilities doesn't blank the KPI card
+    const safe = async <T,>(fn: () => Promise<T>, fallback: T): Promise<T> => { try { return await fn(); } catch { return fallback; } };
+    const [profileRes, report] = await Promise.all([
+      safe(() => api_me.profile(), { data: { id: "", displayName: "", role: "", region: "", avatar: "U", util: [] } } as any),
+      safe(() => api_me.reports('MONTH'), { data: { gmvCents: "0", orderCount: "0", aftersaleCount: "0", completion: 0 } } as any),
+    ]);
     profile.value = {
-      id: r.data.id,
-      displayName: r.data.displayName,
-      role: r.data.role,
-      region: r.data.region,
-      avatar: r.data.avatar,
+      id: profileRes.data.id,
+      displayName: profileRes.data.displayName,
+      role: profileRes.data.role,
+      region: profileRes.data.region,
+      avatar: profileRes.data.avatar,
     };
-    utilities.value = r.data.util;
+    utilities.value = profileRes.data.util;
+    metrics.value = report.data;
   }
 
-  return { profile, utilities, load };
+  return { profile, utilities, metrics, load };
 });

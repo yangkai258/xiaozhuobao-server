@@ -1,41 +1,44 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
-import { ORDERS } from '../../mock/data';
+import { ref, computed, onMounted } from 'vue';
 import { ORDER_TRANSITIONS, ORDER_TRANSITION_ROLES, type OrderStatus } from '../../utils/state';
 import { formatCents, addCents } from '../../utils/amount';
 import IconBox from '../../components/IconBox/IconBox.vue';
 import StatusTag from '../../components/StatusTag/StatusTag.vue';
+import { api_orders } from '../../api/client';
 
-const order = ref({ ...ORDERS[0] });
-
-const detail = {
-  no: order.value.no,
-  status: order.value.status,
-  cust: order.value.cust,
-  date: order.value.date,
-  qty: order.value.qty,
-  amtCents: '1248000',
-  shipCents: '85000',
-  taxCents: '149800',
-  totalCents: '1482600',
-  lines: [
-    { name: 'JS 聚合物防水涂料 18kg', spec: '聚合物 · 18kg/桶', qty: '8', unit: '桶', price: '33800', cents: '270400' },
-    { name: 'K11 通用型防水涂料 20kg', spec: '通用型 · 20kg/桶', qty: '5', unit: '桶', price: '24480', cents: '122400' },
-    { name: '高柔性防水卷材 1.5mm',  spec: '1.5mm 厚',         qty: '120', unit: '卷', price: '8800',  cents: '1056000' },
-  ],
-  address: '上海浦东新区张江高科园区蔡伦路 88 号 · 张工 15938000123',
-  carrier: '宅宝快运 · 单号 ZBKT20260716-0081',
-  timeline: [
-    { ts: '07-16 14:22', who: '张明',   text: '提交订单', status: 'DRAFT->SUBMITTED' },
-    { ts: '07-16 15:10', who: '财务',   text: '已收款',   status: 'ok' },
-    { ts: '07-16 16:30', who: '仓管',   text: '已拣货',   status: 'ok' },
-    { ts: '07-16 18:00', who: '快运',   text: '已发出',   status: 'SHIPPED' },
-    { ts: '07-17 09:41', who: '签收',   text: '客户已收', status: 'current' },
-  ],
+type OrderItem = { productName: string; spec: string; qty: number; unit: string; priceCents: string };
+type OrderLog = { id: string; action: string; actor: string; at: string; remark: string | null };
+type OrderDetail = {
+  no: string;
+  customerName: string;
+  status: string;
+  statusCode: OrderStatus;
+  amtCents: string;
+  qty: string;
+  orderDate: string;
+  address: string | null;
+  items: OrderItem[];
+  logs: OrderLog[];
 };
 
-const status = ref<OrderStatus>('SHIPPED');
+const detail = ref<OrderDetail | null>(null);
+const status = ref<OrderStatus>('DRAFT');
 const role = ref<'SALES' | 'FINANCE' | 'REGION_MGR' | 'ADMIN' | 'CS'>('SALES');
+
+onMounted(async () => {
+  const pages = (typeof getCurrentPages === 'function' ? getCurrentPages() : []) as Array<{ options?: Record<string, string> }>;
+  const opts = pages.at(-1)?.options ?? {};
+  const no = opts.no || '';
+  if (!no) return;
+  try {
+    const r = await api_orders.byId(no);
+    const d = r.data as OrderDetail;
+    detail.value = d;
+    status.value = (d.statusCode as OrderStatus) || 'DRAFT';
+  } catch (err) {
+    // ponytail: order not found or auth failed; leave detail null so the page renders its empty state
+  }
+});
 
 const next = computed(() => ORDER_TRANSITIONS[status.value] ?? []);
 const nextActions = computed(() =>
@@ -65,11 +68,13 @@ function onAction(act) {
   });
 }
 
-const subtotal = computed(() => addCents(...detail.lines.map(l => l.cents)));
+const subtotal = computed(() => detail.value ? addCents(...detail.value.items.map(i => i.priceCents)) : '0');
 </script>
 
 <template>
   <view class="page">
+    <view v-if="!detail" class="loading"><text>订单加载中...</text></view>
+    <view v-else>
     <view class="notch">
       <text>09:41</text>
       <text><text class="dot" />ONLINE</text>
@@ -83,7 +88,7 @@ const subtotal = computed(() => addCents(...detail.lines.map(l => l.cents)));
 
     <view class="dossier-cover" style="--mark-color: var(--c-accent)">
       <view class="cover-cust-row">
-        <text class="cover-cust">{{ detail.cust }}</text>
+        <text class="cover-cust">{{ detail.customerName }}</text>
         <StatusTag :status="detail.status"/>
       </view>
       <view class="cover-amt">
@@ -93,7 +98,7 @@ const subtotal = computed(() => addCents(...detail.lines.map(l => l.cents)));
       <view class="cover-meta">
         <text class="mono">{{ detail.no }}</text>
         <text class="sep">·</text>
-        <text class="mono">{{ detail.date }}</text>
+        <text class="mono">{{ detail.orderDate }}</text>
         <text class="sep">·</text>
         <text class="mono">{{ detail.qty }}</text>
       </view>
@@ -123,17 +128,17 @@ const subtotal = computed(() => addCents(...detail.lines.map(l => l.cents)));
           <IconBox name="store" :size="14" color="var(--c-green)"/>
         </view>
         <text class="dossier-section-title">物料明细</text>
-        <text class="dossier-section-meta">{{ detail.lines.length }} 行 · 共 {{ detail.qty }}</text>
+        <text class="dossier-section-meta">{{ detail.items.length }} 行 · 共 {{ detail.qty }}</text>
       </view>
       <view class="dossier-section-body">
-        <view v-for="(l, i) in detail.lines" :key="i" class="info-row">
+        <view v-for="(l, i) in detail.items" :key="i" class="info-row">
           <view style="flex:1; min-width:0;">
-            <text style="font-size:13px; font-weight:600; color:var(--c-ink); display:block;">{{ l.name }}</text>
+            <text style="font-size:13px; font-weight:600; color:var(--c-ink); display:block;">{{ l.productName }}</text>
             <text style="font-size:11px; color:var(--c-mute); margin-top:2px; display:block;">{{ l.spec }}</text>
           </view>
           <view style="display:flex; flex-direction:column; align-items:flex-end; gap:2px;">
             <text style="font-family:var(--ff-mono); font-size:10px; color:var(--c-mute);">{{ l.qty }} {{ l.unit }}</text>
-            <text style="font-family:var(--ff-display); font-size:13px; font-weight:600; color:var(--c-ink);">¥ {{ formatCents(l.cents) }}</text>
+            <text style="font-family:var(--ff-display); font-size:13px; font-weight:600; color:var(--c-ink);">¥ {{ formatCents(l.priceCents) }}</text>
           </view>
         </view>
         <view style="display:flex; justify-content:space-between; align-items:center; padding:10px 18px; background:var(--c-paper); border-top:1px solid var(--c-line-soft);">
@@ -155,17 +160,11 @@ const subtotal = computed(() => addCents(...detail.lines.map(l => l.cents)));
           <text class="info-label">商品小计</text>
           <text class="info-val" style="text-align:right; font-family:var(--ff-mono);">¥ {{ formatCents(detail.amtCents) }}</text>
         </view>
-        <view class="info-row">
-          <text class="info-label">运费</text>
-          <text class="info-val" style="text-align:right; font-family:var(--ff-mono);">¥ {{ formatCents(detail.shipCents) }}</text>
-        </view>
-        <view class="info-row">
-          <text class="info-label">税额 (13%)</text>
-          <text class="info-val" style="text-align:right; font-family:var(--ff-mono);">¥ {{ formatCents(detail.taxCents) }}</text>
-        </view>
+        <!-- 运费 / 税额 / 物流字段后端尚未返回，留作联调后续补 -->
+        
         <view class="info-row" style="background:var(--c-paper); border-top:1px solid var(--c-line-soft);">
           <text class="info-label" style="font-size:13px; font-weight:600; color:var(--c-ink);">实付总额</text>
-          <text class="info-val" style="text-align:right; font-family:var(--ff-display); font-size:15px; font-weight:700; color:var(--c-ink);">¥ {{ formatCents(detail.totalCents) }}</text>
+          <text class="info-val" style="text-align:right; font-family:var(--ff-display); font-size:15px; font-weight:700; color:var(--c-ink);">¥ {{ formatCents(detail.amtCents) }}</text>
         </view>
       </view>
     </view>
@@ -182,10 +181,7 @@ const subtotal = computed(() => addCents(...detail.lines.map(l => l.cents)));
           <text class="info-label">收货地址</text>
           <text class="info-val">{{ detail.address }}</text>
         </view>
-        <view class="info-row">
-          <text class="info-label">承运物流</text>
-          <text class="info-val">{{ detail.carrier }}</text>
-        </view>
+        
       </view>
     </view>
 
@@ -195,23 +191,24 @@ const subtotal = computed(() => addCents(...detail.lines.map(l => l.cents)));
           <IconBox name="clock" :size="14" color="var(--c-accent)"/>
         </view>
         <text class="dossier-section-title">流转日志</text>
-        <text class="dossier-section-meta">5 条</text>
+        <text class="dossier-section-meta">{{ detail.logs.length }} 条</text>
       </view>
       <view class="dossier-section-body">
-        <view v-for="(t, i) in detail.timeline" :key="i" class="tl-item">
-          <view class="tl-dot" :class="t.status === 'current' ? 'cur' : ''"/>
+        <view v-for="(t, i) in detail.logs" :key="t.id" class="tl-item">
+          <view class="tl-dot" :class="i === detail.logs.length - 1 ? 'cur' : ''"/>
           <view class="tl-body">
             <view class="tl-top">
-              <text class="tl-who">{{ t.who }}</text>
-              <text class="tl-ts">{{ t.ts }}</text>
+              <text class="tl-who">{{ t.actor }}</text>
+              <text class="tl-ts">{{ (t.at || '').slice(0, 16).replace('T', ' ') }}</text>
             </view>
-            <text class="tl-text">{{ t.text }}</text>
+            <text class="tl-text">{{ t.action }}{{ t.remark ? ' · ' + t.remark : '' }}</text>
           </view>
         </view>
       </view>
     </view>
 
     <view class="footer-meta">{{ detail.no }} · 销卓宝 v3.1</view>
+    </view>
   </view>
 </template>
 

@@ -1,0 +1,13 @@
+# legacy v2 prototype artifacts
+index.html
+index-3.html
+preview-dashboard.png
+
+# parallel frontend exploration (not the active codebase)
+v3-next/
+
+# local probe scratch
+bun-probe.out
+node-probe.*
+*.tmp-build
+.env.local

@@ -10,6 +10,7 @@ import { Response } from 'express';
 import { firstValueFrom, from, Observable } from 'rxjs';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../infra/prisma/prisma.service';
+import { MetricsService } from '../../observability/metrics.service';
 import { ApiException } from '../filters/api.exception';
 import { ApiRequest } from '../types';
 import { stableStringify, toPrismaJson } from '../utils/stable-json';
@@ -40,16 +41,20 @@ const writeMethods = new Set(['POST', 'PATCH', 'DELETE']);
 const uuidV4Pattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const TTL_MS = 24 * 60 * 60 * 1000;
 const PENDING_SENTINEL = -1;
-// ponytail: 用 Prisma IdempotencyRecord 的 unique 约束做跨进程互斥，省去 Redis 依赖。
-// 流程：INSERT 占位（statusCode=-1）→ 执行下游 → UPDATE 覆盖 sentinel。
-// P2002 触发方 spin-wait 读表直到拿到 statusCode !== -1 的最终结果再 replay。
-// 上限：spin 50ms x 100 ~= 5s；慢下游/跨区部署换 listen/notify 或 Redis pub/sub。
+// ponytail: Prisma IdempotencyRecord unique-key P2002 is used in place of Redis SETNX (no ioredis dep).
+// INSERT sentinel (statusCode=-1) -> run downstream -> UPDATE final result; contention spins
+// 50ms x 100 ~= 5s reading the table until statusCode !== -1, then replays. Downstream failure
+// deletes the sentinel so retries can take over. Ceiling: 5s spin; cross-region / slow downstream
+// should switch to Postgres LISTEN/NOTIFY or Redis pub/sub.
 
 @Injectable()
 export class IdempotencyInterceptor implements NestInterceptor {
   private readonly inFlight = new Map<string, InFlightRequest>();
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly metrics: MetricsService,
+  ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const request = context.switchToHttp().getRequest<ApiRequest>();
@@ -82,6 +87,7 @@ export class IdempotencyInterceptor implements NestInterceptor {
     if (existing && existing.expiresAt > new Date() && existing.statusCode !== PENDING_SENTINEL) {
       this.assertSameRequest(identity, existing);
       response.status(existing.statusCode).setHeader('Idempotent-Replay', 'true');
+      this.recordReplay(identity.path);
       return existing.responseBody;
     }
 
@@ -90,6 +96,7 @@ export class IdempotencyInterceptor implements NestInterceptor {
       this.assertSameRequest(identity, inFlight);
       const result = await inFlight.promise;
       response.status(result.statusCode).setHeader('Idempotent-Replay', 'true');
+      this.recordReplay(identity.path);
       return result.data;
     }
 
@@ -126,6 +133,7 @@ export class IdempotencyInterceptor implements NestInterceptor {
         }
         this.assertSameRequest(identity, stored);
         response.status(stored.statusCode).setHeader('Idempotent-Replay', 'true');
+        this.recordReplay(identity.path);
         return { statusCode: stored.statusCode, data: stored.responseBody };
       }
       throw e;
@@ -166,6 +174,14 @@ export class IdempotencyInterceptor implements NestInterceptor {
       }
     }
     return null;
+  }
+
+  private recordReplay(endpoint: string): void {
+    try {
+      this.metrics.recordIdempotencyReplay(endpoint);
+    } catch {
+      // ponytail: metrics must never break a request; structured logger already carries the replay signal.
+    }
   }
 
   private assertSameRequest(identity: RequestIdentity, stored: RequestIdentity): void {

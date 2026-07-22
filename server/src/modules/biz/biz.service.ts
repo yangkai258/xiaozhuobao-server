@@ -3,12 +3,16 @@ import { BizKind, Prisma } from '@prisma/client';
 import { ZodError } from 'zod';
 import { ApiException } from '../../common/filters/api.exception';
 import { PrismaService } from '../../infra/prisma/prisma.service';
+import { MetricsService } from '../../observability/metrics.service';
 import { canTransitionBiz } from './biz-state-machine';
-import { BizPayloadByKind, BizQuery, BizStatusInput, parseBizPayload } from './biz.schemas';
+import { BizPayloadByKind, BizQuery, BizStatusInput, BizSummaryQuery, parseBizPayload } from './biz.schemas';
 
 @Injectable()
 export class BizService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly metrics: MetricsService,
+  ) {}
 
   async findMany(query: BizQuery): Promise<unknown> {
     const where: Prisma.BizSubmissionWhereInput = {
@@ -51,7 +55,7 @@ export class BizService {
         throw new ApiException(10422, '关联客商不存在', HttpStatus.UNPROCESSABLE_ENTITY);
       }
     }
-    return this.prisma.bizSubmission.create({
+    const created = await this.prisma.bizSubmission.create({
       data: {
         kind,
         payload: payload as unknown as Prisma.InputJsonObject,
@@ -60,6 +64,8 @@ export class BizService {
         version: 1,
       },
     });
+    this.recordSubmission(created.kind, created.status);
+    return created;
   }
 
   async updateStatus(id: string, version: number, input: BizStatusInput): Promise<unknown> {
@@ -77,7 +83,41 @@ export class BizService {
     if (updated.count !== 1) {
       throw new ApiException(10009, 'version 不匹配，请刷新后重试', HttpStatus.CONFLICT);
     }
-    return this.prisma.bizSubmission.findFirst({ where: { id, isDeleted: false } });
+    const refreshed = await this.prisma.bizSubmission.findFirst({ where: { id, isDeleted: false } });
+    if (refreshed) {
+      this.recordSubmission(refreshed.kind, refreshed.status);
+    }
+    return refreshed;
+  }
+
+  private recordSubmission(kind: BizKind, status: string): void {
+    try {
+      this.metrics.recordBizSubmission(kind, status);
+    } catch {
+      // ponytail: metrics must never fail a business flow.
+    }
+  }
+
+  async summary(query: BizSummaryQuery, userId: string): Promise<unknown> {
+    const base: Prisma.BizSubmissionWhereInput = { isDeleted: false };
+    const where: Prisma.BizSubmissionWhereInput = { ...base, ...(query.kind ? { kind: query.kind } : {}) };
+    const grouped = await this.prisma.bizSubmission.groupBy({
+      by: ['kind', 'status'],
+      where,
+      _count: { _all: true },
+    });
+    const statusTotals: Record<string, number> = {};
+    const items: { kind: BizKind; total: number; byStatus: Record<string, number> }[] = [];
+    for (const entry of grouped) {
+      const kind = entry.kind as BizKind;
+      let row = items.find((it) => it.kind === kind);
+      if (!row) { row = { kind, total: 0, byStatus: {} }; items.push(row); }
+      row.byStatus[entry.status] = entry._count._all;
+      row.total += entry._count._all;
+      statusTotals[entry.status] = (statusTotals[entry.status] ?? 0) + entry._count._all;
+    }
+    items.sort((a, b) => a.kind.localeCompare(b.kind));
+    return { items, statusTotals, generatedBy: userId, at: new Date().toISOString() };
   }
 
   private parsePayload(kind: BizKind, rawPayload: unknown): BizPayloadByKind[typeof kind] {

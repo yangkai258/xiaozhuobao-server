@@ -1,4 +1,5 @@
 import { Injectable, LoggerService, LogLevel } from '@nestjs/common';
+import { context as otelContext, isSpanContextValid, trace } from '@opentelemetry/api';
 import { RequestContext } from './request-context';
 
 const SERVICE_NAME = 'xzb-server';
@@ -69,13 +70,15 @@ export class StructuredLogger implements LoggerService {
   ): void {
     const level = isLogLevel(rawLevel) ? LEVEL_TO_LABEL[rawLevel] : rawLevel;
     const ctx = RequestContext.get();
+    const spanContext = trace.getSpanContext(otelContext.active());
+    const activeSpan = spanContext && isSpanContextValid(spanContext) ? spanContext : undefined;
     const latencyMs = ctx ? Date.now() - ctx.startTimeMs : undefined;
     const record: LogRecord = {
       timestamp: new Date().toISOString(),
       level,
       service: SERVICE_NAME,
-      traceId: ctx?.traceId ?? 'no-trace',
-      spanId: ctx?.spanId ?? 'no-span',
+      traceId: activeSpan?.traceId ?? ctx?.traceId ?? 'no-trace',
+      spanId: activeSpan?.spanId ?? ctx?.spanId ?? 'no-span',
       userId: ctx?.userId ?? null,
       route: ctx?.route ?? 'unknown',
       method: ctx?.method ?? 'UNKNOWN',

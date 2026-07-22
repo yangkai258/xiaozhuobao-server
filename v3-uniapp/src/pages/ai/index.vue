@@ -1,9 +1,20 @@
 <script setup lang="ts">
-import { AI_MODULES } from '../../mock/data';
+import { ref, onMounted } from 'vue';
+import { api_ai } from '../../api/client';
 
 const aiIcons: Record<string, string> = {
   '1': 'spoke', '2': 'tag', '3': 'clock', '4': 'complaint', '5': 'phone', '6': 'follow',
 };
+
+const modules = ref<Array<{ id: string; num: string; name: string; desc: string; color: string }>>([]);
+onMounted(async () => {
+  try {
+    const r = await api_ai.modules();
+    modules.value = r.data;
+  } catch {
+    // AI modules not yet reachable; keep empty list so the UI renders 6 placeholder cards
+  }
+});
 
 const dynamic = [
   { tag: '洞察', color: 'var(--c-blue)',  text: '上海建工近 7 日下单频率 +18%，建议派单跟进',       ts: '07-21 09:21' },
@@ -56,11 +67,11 @@ function onPick(m: any) {
     <view class="section">
       <view class="section-head">
         <text class="section-title">AI 模块</text>
-        <text class="section-meta">6 个 · 可调用</text>
+        <text class="section-meta">{{ modules.length }} 个 · 可调用</text>
       </view>
       <view class="ai-grid">
         <view
-          v-for="m in AI_MODULES"
+          v-for="m in modules"
           :key="m.id"
           class="ai-card"
           :style="{ '--ai-color': m.color }"

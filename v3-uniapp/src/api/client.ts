@@ -1,108 +1,253 @@
 import { v4 as uuidv4 } from 'uuid';
 import {
-  CUSTOMERS, PRODUCTS, ORDERS, AI_MODULES, AFTERSALES,
-  FOLLOW_TASKS, BIZ, UTILITIES,
+  BIZ,
 } from '../mock/data';
-import type { Order } from '../mock/data';
 import { BizError, friendlyMessage } from '../utils/error';
 
-const USE_MOCK = false;
 const BASE = 'http://localhost:4000/api/v1';
+const TOKEN_KEY = 'xzb_access_token';
+const REFRESH_KEY = 'xzb_refresh_token';
 
-/** W3C traceparent 生成（前端生成 trace_id，span_id 每次新建） */
+type Envelope<T> = { code: number; data: T; msg: string; traceId?: string };
+type TokenPair = { accessToken: string; refreshToken: string };
+type AnyRecord = Record<string, unknown>;
+
+let accessToken = '';
+let refreshToken = '';
+let onUnauthorized: ((reason: 'expired' | 'refreshFailed') => void) | null = null;
+let refreshing: Promise<TokenPair> | null = null;
+
 function genTraceparent(): string {
   const traceId = uuidv4().replace(/-/g, '');
   const spanId = uuidv4().replace(/-/g, '').slice(0, 16);
   return `00-${traceId}-${spanId}-01`;
 }
 
-type Envelope<T> = { code: number; data: T; msg: string; traceId?: string };
-type LoginData = { accessToken: string; refreshToken: string };
-const TOKEN_KEY = 'xzb_access_token';
-let authPromise: Promise<string> | null = null;
+function loadTokens(): void {
+  try {
+    accessToken = (uni.getStorageSync(TOKEN_KEY) as string) || '';
+    refreshToken = (uni.getStorageSync(REFRESH_KEY) as string) || '';
+  } catch {
+    accessToken = '';
+    refreshToken = '';
+  }
+}
 
-function request<T>(path: string, method: 'GET' | 'POST' = 'GET', data?: unknown, skipAuth = false): Promise<Envelope<T>> {
+function saveTokens(pair: TokenPair): void {
+  accessToken = pair.accessToken;
+  refreshToken = pair.refreshToken;
+  try {
+    uni.setStorageSync(TOKEN_KEY, pair.accessToken);
+    uni.setStorageSync(REFRESH_KEY, pair.refreshToken);
+  } catch {
+    // 忽略持久化错误，前端仍能继续使用内存中的 token
+  }
+}
+
+export function clearTokens(): void {
+  accessToken = '';
+  refreshToken = '';
+  try {
+    uni.removeStorageSync(TOKEN_KEY);
+    uni.removeStorageSync(REFRESH_KEY);
+  } catch {
+    // 忽略持久化错误
+  }
+}
+
+export function setAuthNotifier(handler: (reason: 'expired' | 'refreshFailed') => void): void {
+  onUnauthorized = handler;
+}
+
+function toBizError(http: number, code: number, msg: string, traceId?: string): BizError {
+  return new BizError({ http, code, msg: friendlyMessage(code, msg), traceId });
+}
+
+function rawRequest<T>(path: string, method: 'GET' | 'POST' | 'PATCH' = 'GET', data?: unknown, tokenOverride?: string, skipAuth = false): Promise<Envelope<T>> {
   return new Promise((resolve, reject) => {
-    const send = (token?: string) => uni.request({
+    const headers: AnyRecord = {
+      'Accept-Language': 'zh-CN',
+      traceparent: genTraceparent(),
+    };
+    if (!skipAuth) {
+      const token = tokenOverride ?? accessToken;
+      if (token) headers.Authorization = `Bearer ${token}`;
+    }
+    if (method !== 'GET') headers['Idempotency-Key'] = uuidv4();
+    uni.request({
       url: BASE + path,
       method,
       data,
-      header: {
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        'Accept-Language': 'zh-CN',
-        traceparent: genTraceparent(),
-        ...(method !== 'GET' ? { 'Idempotency-Key': uuidv4() } : {}),
-      },
+      header: headers,
       success: (response) => {
         const body = response.data as Envelope<T>;
-        if (body.code !== 0) return reject(new BizError({ http: response.statusCode, code: body.code, msg: friendlyMessage(body.code, body.msg), traceId: body.traceId }));
+        if (body.code !== 0) return reject(toBizError(response.statusCode, body.code, body.msg, body.traceId));
         resolve(body);
       },
       fail: (error) => reject(new BizError({ http: 0, code: 0, msg: String(error.errMsg || '网络连接失败') })),
     });
-    if (skipAuth) return send();
-    const stored = uni.getStorageSync(TOKEN_KEY);
-    if (stored) return send(stored);
-    if (!authPromise) authPromise = request<LoginData>('/auth/login', 'POST', { username: 'zhangming', password: 'Xzb@2026!' }, true).then((result) => { uni.setStorageSync(TOKEN_KEY, result.data.accessToken); return result.data.accessToken; });
-    authPromise.then(send).catch(reject);
   });
 }
-/* ========== Mock 层（首期所有数据走 mock，后续切真接口） ========== */
-function ok<T>(data: T): Promise<{ code: 0; data: T; msg: 'ok' }> {
-  return Promise.resolve({ code: 0 as const, data, msg: 'ok' as const });
+
+async function refreshTokens(): Promise<TokenPair> {
+  if (!refreshToken) throw new BizError({ http: 401, code: 20100, msg: '请先登录' });
+  if (!refreshing) {
+    refreshing = rawRequest<TokenPair>('/auth/refresh', 'POST', { refreshToken }, '', true)
+      .then((res) => {
+        const pair = res.data;
+        saveTokens(pair);
+        return pair;
+      })
+      .finally(() => { refreshing = null; });
+  }
+  return refreshing;
 }
 
+
+export async function request<T>(path: string, method: 'GET' | 'POST' | 'PATCH' = 'GET', data?: unknown): Promise<Envelope<T>> {
+  if (!accessToken) loadTokens();
+  try {
+    return await rawRequest<T>(path, method, data);
+  } catch (error) {
+    if (error instanceof BizError && (error.code === 20100 || error.code === 20104) && refreshToken) {
+      try {
+        await refreshTokens();
+        if (onUnauthorized) onUnauthorized('expired');
+        return await rawRequest<T>(path, method, data);
+      } catch (refreshError) {
+        clearTokens();
+        if (onUnauthorized) onUnauthorized('refreshFailed');
+        throw refreshError;
+      }
+    }
+    throw error;
+  }
+}
+
+export async function loginWithCredentials(username: string, password: string): Promise<TokenPair> {
+  const res = await rawRequest<TokenPair>('/auth/login', 'POST', { username, password }, '', true);
+  saveTokens(res.data);
+  return res.data;
+}
+
+export async function logout(): Promise<void> {
+  try { await rawRequest<void>('/auth/logout', 'POST', undefined); } catch { /* 即使失败也要清空本地 */ }
+  clearTokens();
+}
+
+/* ========== 业务 API ========== */
+
 export const api_customers = {
-  list: () => USE_MOCK ? ok({ items: CUSTOMERS, page: 1, size: 20, total: CUSTOMERS.length, hasMore: false }) : request<any>('/customers?page=1&size=100'),
-  byId: (bp: string) => USE_MOCK ? ok(CUSTOMERS.find(c => c.bp === bp) ?? null) : request<any>(`/customers/${encodeURIComponent(bp)}`),
+  list: () => request<any>('/customers?page=1&size=100'),
+  byId: (id: string) => request<any>(`/customers/${encodeURIComponent(id)}`),
 };
 
 export const api_products = {
   list: async () => {
-    if (USE_MOCK) return ok({ items: PRODUCTS, page: 1, size: 50, total: PRODUCTS.length, hasMore: false });
     const result = await request<any>('/products?page=1&size=100');
     return { ...result, data: { ...result.data, items: result.data.items.map((p: any) => ({ ...p, price: Number(p.priceCents) / 100 })) } };
   },
-  byId: (no: string) => USE_MOCK ? ok(PRODUCTS.find(p => p.no === no) ?? null) : request<any>(`/products/${encodeURIComponent(no)}`),
+  byId: (id: string) => request<any>(`/products/${encodeURIComponent(id)}`),
 };
-
-function mapOrder(order: any): Order {
-  return { no: order.no, cust: order.customerName, amt: Number(order.amtCents) / 100, status: order.status, qty: order.qty, date: order.orderDate };
-}
 
 export const api_orders = {
   list: async () => {
-    if (USE_MOCK) return ok({ items: ORDERS, page: 1, size: 20, total: ORDERS.length, hasMore: false });
     const result = await request<any>('/orders?page=1&size=100');
-    return { ...result, data: { ...result.data, items: result.data.items.map(mapOrder) } };
+    return { ...result, data: { ...result.data, items: result.data.items.map((o: any) => ({ no: o.no, cust: o.customerName, amt: Number(o.amtCents) / 100, status: o.status, qty: o.qty, date: o.orderDate })) } };
   },
-  byId: async (no: string) => USE_MOCK ? ok(ORDERS.find(o => o.no === no) ?? null) : request<any>(`/orders/${encodeURIComponent(no)}`),
+  byId: (id: string) => request<any>(`/orders/${encodeURIComponent(id)}`),
 };
 
 export const api_aftersales = {
   list: async () => {
-    if (USE_MOCK) return ok({ items: AFTERSALES, page: 1, size: 20, total: AFTERSALES.length, hasMore: false });
     const result = await request<any>('/aftersales?page=1&size=100');
     return { ...result, data: { ...result.data, items: result.data.items.map((a: any) => ({ no: a.no, material: a.material, order: a.orderNo, reason: a.reason, status: a.status, date: a.occurredAt.slice(0, 10) })) } };
   },
+  byId: (id: string) => request<any>(`/aftersales/${encodeURIComponent(id)}`),
+};
+
+export const api_projects = {
+  list: () => request<any>('/projects?page=1&size=100'),
+  byId: (id: string) => request<any>(`/projects/${encodeURIComponent(id)}`),
+};
+
+export const api_contracts = {
+  list: () => request<any>('/contracts?page=1&size=100'),
+  byId: (id: string) => request<any>(`/contracts/${encodeURIComponent(id)}`),
+};
+
+export const api_dicts = {
+  byKind: (kind: string) => request<any>(`/dicts?kind=${encodeURIComponent(kind)}`),
+};
+
+export const api_biz = {
+  list: (query: { kind?: string; filter_status?: string; page?: number; size?: number } = {}) => {
+    const q = new URLSearchParams();
+    if (query.kind) q.set('kind', query.kind);
+    if (query.filter_status) q.set('filter_status', query.filter_status);
+    if (query.page) q.set('page', String(query.page));
+    if (query.size) q.set('size', String(query.size));
+    const qs = q.toString();
+    return request<any>(`/biz${qs ? '?' + qs : ''}`);
+  },
+  summary: (kind?: string) => request<any>(`/biz/summary${kind ? '?kind=' + encodeURIComponent(kind) : ''}`),
+  create: (kind: string, body: unknown) => request<any>(`/biz/${encodeURIComponent(kind)}`, 'POST', body),
 };
 
 export const api_workbench = {
   load: async () => {
-    if (USE_MOCK) return ok({ biz: BIZ, todos: FOLLOW_TASKS, amt: 146283, delta: 0.124, amtWeek: ORDERS.reduce((s, o) => s + o.amt, 0) });
-    const [report, todos] = await Promise.all([request<any>('/me/reports?period=MONTH'), request<any>('/follow/todos?page=1&size=20')]);
-    return { code: 0 as const, msg: 'ok' as const, data: { biz: BIZ, todos: todos.data.items.map((t: any) => ({ h: t.title, sub: t.subtitle || '', node: t.node, due: t.dueAt ? t.dueAt.slice(0, 10) : t.status })), amt: Number(report.data.gmvCents) / 100, delta: 0, amtWeek: report.data.byWeek.reduce((sum: number, item: any) => sum + Number(item.gmvCents) / 100, 0) } };
+    const [report, todos, summary] = await Promise.all([
+      request<any>('/me/reports?period=MONTH'),
+      request<any>('/follow/todos?page=1&size=20'),
+      request<any>('/biz/summary'),
+    ]);
+    const summaryByKind: Record<string, { total: number; byStatus: Record<string, number> }> = {};
+    for (const row of summary.data.items) {
+      summaryByKind[row.kind] = { total: row.total, byStatus: row.byStatus };
+    }
+    return {
+      code: 0 as const,
+      msg: 'ok' as const,
+      data: {
+        biz: BIZ.map((b) => {
+          const row = summaryByKind[b.en];
+          const total = row?.total ?? 0;
+          const pending = row?.byStatus?.PENDING ?? 0;
+          return { ...b, count: String(total), pending: String(pending) };
+        }),
+        todos: todos.data.items.map((t: any) => ({ h: t.title, sub: t.subtitle || '', node: t.node, due: t.dueAt ? t.dueAt.slice(0, 10) : t.status })),
+        amt: Number(report.data.gmvCents) / 100,
+        delta: 0,
+        amtWeek: report.data.byWeek.reduce((sum: number, item: any) => sum + Number(item.gmvCents) / 100, 0),
+        gmvCents: report.data.gmvCents,
+        orderCount: report.data.orderCount,
+        aftersaleCount: report.data.aftersaleCount,
+        completion: report.data.completion,
+      },
+    };
   },
 };
 
 export const api_ai = {
-  modules: () => USE_MOCK ? ok(AI_MODULES) : request<any>('/ai/modules'),
+  modules: () => request<any>('/ai/modules'),
+  invoke: (module: string, prompt: string, context: AnyRecord = {}) => request<any>(`/ai/${module}/invoke`, 'POST', { prompt, context }),
+  history: (module: string) => request<any>(`/ai/${module}/history`),
 };
 
 export const api_me = {
   profile: async () => {
-    if (USE_MOCK) return ok({ id: 'u-001', displayName: '张明', role: 'SALES · 上海', avatar: 'M', region: '上海', util: UTILITIES });
     const [profile, utilities] = await Promise.all([request<any>('/me'), request<any>('/me/utilities')]);
-    return { ...profile, data: { id: profile.data.id, displayName: profile.data.displayName, role: `${profile.data.role} · ${profile.data.region || ''}`, avatar: (profile.data.displayName || 'U').slice(0, 1), region: profile.data.region || '', util: utilities.data.map((u: any) => ({ ...u, icon: 'dot' })) } };
+    return {
+      ...profile,
+      data: {
+        id: profile.data.id,
+        displayName: profile.data.displayName,
+        role: profile.data.role,
+        region: profile.data.region || '',
+        avatar: (profile.data.displayName || 'U').slice(0, 1),
+        util: utilities.data.map((u: any) => ({ ...u, icon: 'dot' })),
+      },
+    };
   },
+  reports: (period: 'WEEK' | 'MONTH' | 'QUARTER' | 'YEAR' = 'MONTH') => request<any>(`/me/reports?period=${period}`),
 };

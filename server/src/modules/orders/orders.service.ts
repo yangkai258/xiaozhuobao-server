@@ -3,6 +3,7 @@ import { OrderStatus, Prisma } from '@prisma/client';
 import { ApiException } from '../../common/filters/api.exception';
 import { AuthenticatedUser } from '../../common/types';
 import { PrismaService } from '../../infra/prisma/prisma.service';
+import { MetricsService } from '../../observability/metrics.service';
 import { canTransitionOrder } from './order-state-machine';
 import { CreateOrderInput, OrderQuery, OrderStatusInput } from './orders.schemas';
 
@@ -51,7 +52,10 @@ const statusLabels: Record<OrderStatus, string> = {
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly metrics: MetricsService,
+  ) {}
 
   async findMany(query: OrderQuery): Promise<unknown> {
     const where: Prisma.OrderWhereInput = {
@@ -219,6 +223,7 @@ export class OrdersService {
       if (updated.count !== 1) {
         throw new ApiException(10009, 'version 不匹配，请刷新后重试', HttpStatus.CONFLICT);
       }
+      this.recordTransition(order.status, input.status);
 
       for (const item of order.items) {
         if (input.status === OrderStatus.CANCELLED) {
@@ -250,6 +255,14 @@ export class OrdersService {
         },
       });
     });
+  }
+
+  private recordTransition(from: OrderStatus, to: OrderStatus): void {
+    try {
+      this.metrics.recordOrderStateTransition(from, to);
+    } catch {
+      // ponytail: metrics must never fail a state transition.
+    }
   }
 
   private findOrder(identifier: string): Promise<OrderDetailResult | null> {
