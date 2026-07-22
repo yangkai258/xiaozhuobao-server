@@ -16,6 +16,7 @@ onMounted(async () => {
   }
 });
 
+// ponytail: 6 条近 7 日动态临时保留为演示数据，待 /ai/dynamics 后端接口上线后切换
 const dynamic = [
   { tag: '洞察', color: 'var(--c-blue)',  text: '上海建工近 7 日下单频率 +18%，建议派单跟进',       ts: '07-21 09:21' },
   { tag: '预警', color: 'var(--c-warn)',  text: 'JS 聚合物库存跌至 5 桶，建议本日补货',           ts: '07-21 08:54' },
@@ -93,6 +94,7 @@ function onPick(m: any) {
     <view class="section">
       <view class="section-head">
         <text class="section-title">近 7 日动态</text>
+        <view class="demo-badge"><text>演示数据</text></view>
         <text class="section-meta">{{ dynamic.length }} 条</text>
       </view>
       <view class="dyn-list">
@@ -191,6 +193,16 @@ function onPick(m: any) {
   font-size: 10px;
   color: var(--c-mute);
   letter-spacing: 0.08em;
+}
+.demo-badge {
+  padding: 1px 6px;
+  font-size: 9px;
+  color: var(--c-warn);
+  background: #fff7e6;
+  border: 1px solid var(--c-warn);
+  border-radius: var(--r-pill);
+  letter-spacing: 0.04em;
+  margin-right: 6px;
 }
 
 /* ============ AI 模块 2×3 ============ */

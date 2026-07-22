@@ -17,6 +17,7 @@ type OrderDetail = {
   qty: string;
   orderDate: string;
   address: string | null;
+  version: number;
   items: OrderItem[];
   logs: OrderLog[];
 };

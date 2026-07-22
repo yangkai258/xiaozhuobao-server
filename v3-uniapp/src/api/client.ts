@@ -4,7 +4,8 @@ import {
 } from '../mock/data';
 import { BizError, friendlyMessage } from '../utils/error';
 
-const BASE = 'http://localhost:4000/api/v1';
+// uni-app H5 reads Vite env at build time; falls back to local dev server
+const BASE = ((((import.meta as any).env || {}).VITE_API_BASE_URL as string) || 'http://localhost:4000') + '/api/v1';
 const TOKEN_KEY = 'xzb_access_token';
 const REFRESH_KEY = 'xzb_refresh_token';
 

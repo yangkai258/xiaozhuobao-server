@@ -19,6 +19,7 @@ type AftersaleDetail = {
   occurredAt: string;
   images: string[];
   oaFlowId: string | null;
+  version: number;
 };
 
 const detail = ref<AftersaleDetail | null>(null);
