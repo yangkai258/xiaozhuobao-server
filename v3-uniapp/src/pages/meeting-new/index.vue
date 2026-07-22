@@ -1,8 +1,14 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import IconBox from '../../components/IconBox/IconBox.vue';
+import { api_biz } from '../../api/client';
+import { useInfoStore } from '../../stores';
 
 const status = ref('DRAFT');
+
+const infoStore = useInfoStore();
+const customerId = ref('');
+onMounted(() => { void infoStore.load().then(() => { customerId.value = infoStore.customers[0]?.id || ''; }); });
 
 const form = ref({
     "topic": "新品技术交流会",
@@ -91,18 +97,23 @@ const steps = ["DRAFT","SUBMITTED","INVITED","DONE"];
 const stepLabels = ["草稿","已提交","已邀请","已完成"];
 const currentStepIndex = computed(() => steps.indexOf(status.value));
 
-function onSubmit() {
+async function onSubmit() {
   if (status.value !== 'DRAFT') return;
-  uni.showModal({
-    title: '确认提交 会议推广登记?',
-    content: '提交后将进入审批流程',
-    success: function(res) {
-      if (res.confirm) {
-        status.value = 'SUBMITTED';
-        uni.showToast({ title: '已提交审批', icon: 'success' });
-      }
-    },
-  });
+  if (!customerId.value) { uni.showToast({ title: '客户未加载', icon: 'none' }); return; }
+  const payload = { customerId: customerId.value, topic: form.value.topic, remark: form.value.note };
+  if (form.value.start) payload.date = form.value.start.slice(0, 10);
+  if (form.value.location) payload.location = form.value.location;
+  if (form.value.agenda) payload.agenda = form.value.agenda;
+  const confirm = await new Promise<boolean>(r => uni.showModal({ title: '确认提交 会议推广登记?', success: s => r(s.confirm) }));
+  if (!confirm) return;
+  try {
+    await api_biz.create('MEETING', payload);
+    status.value = 'SUBMITTED';
+    uni.showToast({ title: '已提交审批', icon: 'success' });
+    setTimeout(() => uni.navigateBack(), 800);
+  } catch (e: any) {
+    uni.showToast({ title: e?.msg || '提交失败', icon: 'none' });
+  }
 }
 
 function onSave() {

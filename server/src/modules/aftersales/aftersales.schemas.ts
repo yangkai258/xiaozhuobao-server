@@ -18,5 +18,11 @@ export const createAftersaleSchema = z.object({
 
 export const aftersaleIdentifierSchema = z.string().trim().min(2).max(64);
 
+export const aftersaleStatusSchema = z.object({
+  status: z.nativeEnum(AftersaleStatus),
+  remark: z.string().trim().max(240).optional(),
+});
+
 export type AftersaleQuery = z.infer<typeof aftersaleQuerySchema>;
 export type CreateAftersaleInput = z.infer<typeof createAftersaleSchema>;
+export type AftersaleStatusInput = z.infer<typeof aftersaleStatusSchema>;

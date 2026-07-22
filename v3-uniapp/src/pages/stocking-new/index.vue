@@ -1,8 +1,15 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import IconBox from '../../components/IconBox/IconBox.vue';
+import { api_biz } from '../../api/client';
+import { useInfoStore } from '../../stores';
 
 const status = ref('DRAFT');
+
+const infoStore = useInfoStore();
+const customerId = ref('');
+const productId = ref('');
+onMounted(() => { void infoStore.load().then(() => { customerId.value = infoStore.customers[0]?.id || ''; productId.value = infoStore.products[0]?.id || ''; }); });
 
 const form = ref({
     "material": "JS 聚合物防水涂料 18kg",
@@ -92,18 +99,23 @@ const steps = ["DRAFT","SUBMITTED","APPROVED"];
 const stepLabels = ["草稿","已提交","已通过"];
 const currentStepIndex = computed(() => steps.indexOf(status.value));
 
-function onSubmit() {
+async function onSubmit() {
   if (status.value !== 'DRAFT') return;
-  uni.showModal({
-    title: '确认提交 紧急备货申请?',
-    content: '提交后将进入审批流程',
-    success: function(res) {
-      if (res.confirm) {
-        status.value = 'SUBMITTED';
-        uni.showToast({ title: '已提交审批', icon: 'success' });
-      }
-    },
-  });
+  if (!customerId.value || !productId.value) { uni.showToast({ title: '客户/商品未加载', icon: 'none' }); return; }
+  const qty = parseInt(form.value.suggest, 10) || 0;
+  if (qty <= 0) { uni.showToast({ title: '补货量需大于 0', icon: 'none' }); return; }
+  const payload: any = { customerId: customerId.value, items: [{ productId: productId.value, qty }], totalQty: qty, remark: form.value.note };
+  if (form.value.eta) payload.expectedDate = form.value.eta;
+  const confirm = await new Promise<boolean>(r => uni.showModal({ title: '确认提交 紧急备货申请?', success: s => r(s.confirm) }));
+  if (!confirm) return;
+  try {
+    await api_biz.create('STOCKING', payload);
+    status.value = 'SUBMITTED';
+    uni.showToast({ title: '已提交审批', icon: 'success' });
+    setTimeout(() => uni.navigateBack(), 800);
+  } catch (e: any) {
+    uni.showToast({ title: e?.msg || '提交失败', icon: 'none' });
+  }
 }
 
 function onSave() {

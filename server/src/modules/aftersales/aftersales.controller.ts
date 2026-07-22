@@ -1,14 +1,17 @@
-import { Body, Controller, Get, Header, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Header, HttpCode, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { AuthenticatedUser } from '../../common/types';
+import { IfMatchVersion } from '../../common/decorators/if-match.decorator';
 import {
   aftersaleIdentifierSchema,
   AftersaleQuery,
   aftersaleQuerySchema,
+  AftersaleStatusInput,
+  aftersaleStatusSchema,
   CreateAftersaleInput,
   createAftersaleSchema,
 } from './aftersales.schemas';
@@ -40,5 +43,17 @@ export class AftersalesController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<unknown> {
     return this.aftersalesService.create(body, user);
+  }
+
+  @Patch(':id/status')
+  @HttpCode(200)
+  @Roles(Role.SALES, Role.REGION_MGR, Role.ADMIN)
+  updateStatus(
+    @Param('id', new ZodValidationPipe(aftersaleIdentifierSchema)) id: string,
+    @IfMatchVersion() version: number,
+    @Body(new ZodValidationPipe(aftersaleStatusSchema)) body: AftersaleStatusInput,
+    @CurrentUser() _user: AuthenticatedUser,
+  ): Promise<unknown> {
+    return this.aftersalesService.updateStatus(id, version, body);
   }
 }

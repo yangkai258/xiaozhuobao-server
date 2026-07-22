@@ -1,12 +1,18 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import {
   SHIPMENT_TRANSITIONS, SHIPMENT_TRANSITION_ROLES, type ShipmentStatus,
 } from '../../utils/state';
 import { formatCents } from '../../utils/amount';
+import { useInfoStore } from '../../stores';
 import IconBox from '../../components/IconBox/IconBox.vue';
 
 const status = ref<ShipmentStatus>('DRAFT');
+const bizId = ref('');
+const infoStore = useInfoStore();
+const customerId = ref('');
+const productId = ref('');
+onMounted(() => { void infoStore.load().then(() => { customerId.value = infoStore.customers[0]?.id || ''; productId.value = infoStore.products[0]?.id || ''; }); });
 const role = ref<'SALES' | 'FINANCE' | 'REGION_MGR' | 'ADMIN' | 'CS'>('SALES');
 
 const form = ref({
@@ -47,21 +53,37 @@ const nextActions = computed(() =>
   })),
 );
 
-function onAction(act) {
+async function onAction(act: any) {
   if (!act.allowed) {
     uni.showToast({ title: '当前角色无此操作权限', icon: 'none' });
     return;
   }
-  uni.showModal({
-    title: '确认' + act.label,
-    content: '状态将从 ' + status.value + ' 变更为 ' + act.to,
-    success: function(res) {
-      if (res.confirm) {
-        status.value = act.to;
-        uni.showToast({ title: '状态已更新', icon: 'success' });
-      }
-    },
-  });
+  const confirm = await new Promise<boolean>(r => uni.showModal({ title: '确认' + act.label, content: '状态将从 ' + status.value + ' 变更为 ' + act.target, success: s => r(s.confirm) }));
+  if (!confirm) return;
+  if (act.key === 'DRAFT->SUBMITTED') {
+    if (!customerId.value || !productId.value) { uni.showToast({ title: '客户/商品未加载', icon: 'none' }); return; }
+    const qty = parseInt(form.value.qty, 10) || 0;
+    if (qty <= 0) { uni.showToast({ title: '数量需大于 0', icon: 'none' }); return; }
+    const payload: any = {
+      customerId: customerId.value,
+      items: [{ productId: productId.value, qty }],
+      address: form.value.addr,
+      plannedDate: form.value.expectedDate,
+      remark: form.value.note,
+    };
+    try {
+      const res = await api_biz.create('SHIPMENT', payload);
+      bizId.value = res.data?.id || '';
+      status.value = act.target;
+      uni.showToast({ title: '已提交', icon: 'success' });
+    } catch (e: any) {
+      uni.showToast({ title: e?.msg || '提交失败', icon: 'none' });
+    }
+    return;
+  }
+  // SUBMITTED ??????????????? ADMIN ? PATCH /biz/:id/status ??
+  status.value = act.target;
+  uni.showToast({ title: '状态已更新', icon: 'success' });
 }
 
 function onSave() {

@@ -11,6 +11,7 @@
 | 日期 | 版本 | 变更 |
 |---|---|---|
 | 2026-07-22 | v1.1 | 初版实现对账；补充筛选枚举、待办派生规则、库存状态机和联调约定 |
+| 2026-07-22 | v1.1.1 | 新增 `PATCH /aftersales/:id/status`；补齐 /biz summary、/me/utilities、follow/todos 派生说明；新增字段级校验约束附录；补齐商品 reservedQty 可售库存说明 |
 
 ---
 
@@ -745,7 +746,27 @@ Zod 的 `enum/nativeEnum` 匹配大小写；普通字符串筛选只去首尾空
 
 `reason` 可取 `QUALITY`、`WRONG_GOODS`、`DAMAGED`、`OTHER`；`images` 最多 20 项，默认空数组。新建后状态固定为 `PENDING_OA`，成功返回 `201`。
 
-当前没有售后状态变更接口，OA/SAP 状态推进属于后续集成范围。
+### `PATCH /aftersales/:id/status`
+
+需要角色 `SALES`、`REGION_MGR` 或 `ADMIN`，并带 `Idempotency-Key`、`If-Match`。
+```json
+{
+  "status": "IN_HANDLING",
+  "remark": "已联系客户补充材料"
+}
+```
+
+状态机：
+
+| 当前状态 | 可变更为 | 限制 |
+|---|---|---|
+| `PENDING_OA` | `IN_HANDLING`、`REJECTED` | 创建人/区域经理/管理员 |
+| `SAP_CREATED` | `IN_HANDLING`、`CLOSED` | 由 SAP 集成写入（当前由 ADMIN 手动推进） |
+| `IN_HANDLING` | `CLOSED`、`REJECTED` | 任意写入角色 |
+| `CLOSED`、`REJECTED` | 终态，不可继续 | - |
+
+成功返回 `200` 和更新后的售后对象；版本不匹配返回 `10009`；非法跃迁返回 `10008`。
+"补充材料" 未单独建模，沿用 `PATCH /aftersales/:id/status` 携带 `remark` 写入日志。
 
 ## 12. 跟进与待办
 
@@ -845,6 +866,22 @@ Zod 的 `enum/nativeEnum` 匹配大小写；普通字符串筛选只去首尾空
 
 列表外层返回 `page`、`size`、`total`、`hasMore`。
 
+### `GET /biz/summary`
+
+需要登录。可选查询参数 `kind`，取值与业务表单列表一致；未传时返回全部业务类型的聚合结果。
+
+```json
+{
+  "items": [
+    { "kind": "SHIPMENT", "total": 3, "byStatus": { "DRAFT": 2, "PENDING": 1 } }
+  ],
+  "statusTotals": { "DRAFT": 2, "PENDING": 1 },
+  "generatedBy": "cluserxxxxxxxxxxxxxxxxxxxx",
+  "at": "2026-07-22T08:00:00.000Z"
+}
+```
+
+`total` 和 `byStatus` 的值均为 number；没有记录的业务类型不会出现在 `items` 中，前端按 `0` 补齐。
 ### `GET /biz/:id`
 
 需要登录，返回单个业务表单记录。
@@ -1120,15 +1157,50 @@ onSuccess((body) => {
 | GET/POST/PATCH | `/contracts`、`/contracts/:id` | 登录；写操作按角色 | 200/201 |
 | GET/PATCH | `/products`、`/products/:id/stock` | 登录；库存写操作按角色 | 200 |
 | GET/POST/PATCH | `/orders`、`/orders/:id/status` | 登录；写操作按角色 | 200/201/204 |
-| GET/POST | `/aftersales`、`/aftersales/:id` | 登录；新建按角色 | 200/201 |
+| GET/POST/PATCH | `/aftersales`、`/aftersales/:id`、`/aftersales/:id/status` | 登录；新建/状态按角色 | 200/201 |
 | GET | `/follow/todos` | 登录；待办由服务端派生，不支持新建 | 200 |
 | POST | `/follow/todos/:id/{done,cancel}` | 登录 + 幂等 | 204 |
-| GET/POST/PATCH | `/biz`、`/biz/:id`、`/biz/:id/status` | 登录；新建/状态按角色 | 200/201 |
+| GET/POST/PATCH | `/biz`、`/biz/summary`、`/biz/:id`、`/biz/:id/status` | 登录；新建/状态按角色 | 200/201 |
 | GET/POST | `/ai/modules`、`/ai/:module/{invoke,history}` | 登录 | 200 |
 | GET | `/me`、`/me/reports`、`/me/utilities` | 登录 | 200 |
 | GET | `/dicts` | 登录 | 200 |
 | POST/GET | `/storage/upload`、`/storage/sign-url`、`/storage/files/*` | 上传/签名登录，下载签名公开 | 200/201/二进制 |
 
+## 21. 字段级校验约束
+
+本附录归纳了各接口入口参数的字段级限制，与商业习惯不一致的部分在各项中明说。
+
+### 21.1 全局限制
+
+| 字段 | 限制 | 出处 | 备注 |
+|---|---|---|---|
+| `username` | trim 后 1–64 位 | `POST /auth/login` | 大小写敏感 |
+| `password` | 8–128 位 | `POST /auth/login` | 最少 1 位非字母字符由后端验证 |
+| `refreshToken` | `以 tk_ 开头、总长 32–128` | `POST /auth/refresh` | 失效返回 `20104` |
+| `Idempotency-Key` | UUID v4 格式 | 所有写接口 | 重复 24h 内返回原调用结果 |
+| `If-Match` | 非负整数字符串 | 带乐观锁的 PATCH | 缺失返回 `40004`；不匹配返回 `10009` |
+| `amtCents` 等金额字段 | `正则 ^\d{1,24}$`，非负整数分字符串 | 业务表单 / 订单 | 不接受小数 / 负数 |
+| `stockDelta` | -1,000,000 至 1,000,000 的非零整数 | `PATCH /products/:id/stock` | 前端传原始数 |
+| `periodStart` 等日期字段 | `YYYY-MM-DD`，不做时区偏移 | 订单 / 业务表单 | 结束日期不能早于开始日期 |
+| `occurredAt` | ISO 8601 DateTime（带偏移） | 售后 / COMPLAINT | 后端转 UTC 存储 |
+| `keyword` | trim 后最多 100 位 | 各列表 | 全匹配编号或名称，大小写敏感，不支持拼音 / 模糊 |
+| 枚举值（`OrderStatus` 等） | 大小写敏感 | 各过滤器 | 不会自动转换 |
+
+### 21.2 语义限制
+
+- 当前业务中只用 `contact`（中文名称 + 空格 + 手机号的自由文本），后端不做手机正则验证；联调业务需要时由后端严格验证。
+- `code` / `no` / `customerId` 等 ID 参数为 trim 后非空字笾，不会自动补齐前缀或转换大小写。
+- 金额字段不接受小数点、负号、空串。
+- 状态机跳转只检查 `status` 与现状态的连接表，不检查业务参数。
+- 项目编号 `no` 不可修改。
+
+### 21.3 语言与时区
+
+- 服务端不转时区：所有 DateTime 存储为 UTC，`YYYY-MM-DD` 不做时区偏移。
+- 客户端负责按用户设备时区转换后展示，现阶段 `Accept-Language: zh-CN` 为唯一被认可的语言。
+- 业务文本字段（如 `status` / `reason` / `cat`）以后端硬编码中文 label 返回；`statusCode` / `reasonCode` 为机器友好。
+
+---
 ## 20. 与当前实现的边界
 
 - SAP、OA、COS、S3 尚未接入真实上游；相关字段目前是本地占位或 mock。

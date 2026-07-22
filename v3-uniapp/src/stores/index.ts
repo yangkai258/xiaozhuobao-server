@@ -7,6 +7,9 @@ export const useWorkbenchStore = defineStore('workbench', () => {
   const amt = ref(0);
   const delta = ref(0);
   const amtWeek = ref(0);
+  const gmvCents = ref('0');
+  const orderCount = ref('0');
+  const completion = ref(0);
   const biz = ref<Biz[]>([]);
   const todos = ref<FollowTask[]>([]);
 
@@ -16,6 +19,9 @@ export const useWorkbenchStore = defineStore('workbench', () => {
       amt.value = r.data.amt;
       delta.value = r.data.delta;
       amtWeek.value = r.data.amtWeek;
+      gmvCents.value = r.data.gmvCents;
+      orderCount.value = r.data.orderCount;
+      completion.value = r.data.completion;
       biz.value = r.data.biz;
       todos.value = r.data.todos;
     } catch {
@@ -23,7 +29,7 @@ export const useWorkbenchStore = defineStore('workbench', () => {
     }
   }
 
-  return { amt, delta, amtWeek, biz, todos, load };
+  return { amt, delta, amtWeek, gmvCents, orderCount, completion, biz, todos, load };
 });
 
 export const useInfoStore = defineStore('info', () => {

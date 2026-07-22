@@ -1,8 +1,14 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import IconBox from '../../components/IconBox/IconBox.vue';
+import { api_biz } from '../../api/client';
+import { useInfoStore } from '../../stores';
 
 const status = ref('DRAFT');
+
+const infoStore = useInfoStore();
+const customerId = ref('');
+onMounted(() => { void infoStore.load().then(() => { customerId.value = infoStore.customers[0]?.id || ''; }); });
 
 const form = ref({
     "name": "上海建工建材 · 张江店",
@@ -94,18 +100,23 @@ const steps = ["DRAFT","SUBMITTED","APPROVED","PAID"];
 const stepLabels = ["草稿","已提交","已通过","已核销"];
 const currentStepIndex = computed(() => steps.indexOf(status.value));
 
-function onSubmit() {
+async function onSubmit() {
   if (status.value !== 'DRAFT') return;
-  uni.showModal({
-    title: '确认提交 建店核销申请?',
-    content: '提交后将进入审批流程',
-    success: function(res) {
-      if (res.confirm) {
-        status.value = 'SUBMITTED';
-        uni.showToast({ title: '已提交审批', icon: 'success' });
-      }
-    },
-  });
+  if (!customerId.value) { uni.showToast({ title: '客户未加载', icon: 'none' }); return; }
+  const payload: any = { customerId: customerId.value, storeName: form.value.name, address: form.value.addr };
+  if (form.value.type) payload.storeType = form.value.type;
+  if (form.value.area) payload.area = form.value.area;
+  if (form.value.note) payload.remark = form.value.note;
+  const confirm = await new Promise<boolean>(r => uni.showModal({ title: '确认提交 建店核销申请?', content: '提交后将进入审批流程', success: s => r(s.confirm) }));
+  if (!confirm) return;
+  try {
+    await api_biz.create('STORE', payload);
+    status.value = 'SUBMITTED';
+    uni.showToast({ title: '已提交审批', icon: 'success' });
+    setTimeout(() => uni.navigateBack(), 800);
+  } catch (e: any) {
+    uni.showToast({ title: e?.msg || '提交失败', icon: 'none' });
+  }
 }
 
 function onSave() {

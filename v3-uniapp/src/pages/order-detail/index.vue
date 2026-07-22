@@ -59,13 +59,39 @@ const nextActions = computed(() =>
   })),
 );
 
-function onAction(act) {
+async function onAction(act) {
   if (!act.allowed) { uni.showToast({ title: '当前角色无此操作权限', icon: 'none' }); return; }
-  uni.showModal({
-    title: '确认' + act.label,
-    content: '状态将从 ' + status.value + ' 变更为 ' + act.to,
-    success: function(res) { if (res.confirm) { status.value = act.to; uni.showToast({ title: '状态已更新', icon: 'success' }); } },
+  const ok = await new Promise<boolean>(resolve => {
+    uni.showModal({
+      title: '确认' + act.label,
+      content: '状态将从 ' + status.value + ' 变更为 ' + act.to,
+      success: r => resolve(r.confirm),
+    });
   });
+  if (!ok) return;
+  // capture version + remark before the network call
+  const v = detail.value?.version ?? 0;
+  if (!v) { uni.showToast({ title: '订单尚未加载完成', icon: 'none' }); return; }
+  try {
+    await api_orders.updateStatus(detail.value!.no, act.to, v);
+    uni.showToast({ title: '状态已更新', icon: 'success' });
+    // re-fetch so version / logs / stock all reflect server state
+    const r = await api_orders.byId(detail.value!.no);
+    detail.value = r.data as OrderDetail;
+    status.value = (r.data as OrderDetail).statusCode;
+  } catch (err: any) {
+    // ponytail: 10009 means someone else changed the order — re-pull + tell the user to retry
+    if (err && err.code === 10009) {
+      try {
+        const r = await api_orders.byId(detail.value!.no);
+        detail.value = r.data as OrderDetail;
+        status.value = (r.data as OrderDetail).statusCode;
+      } catch {}
+      uni.showToast({ title: '状态已被他人修改，请重试', icon: 'none' });
+    } else {
+      uni.showToast({ title: err?.message || '操作失败', icon: 'none' });
+    }
+  }
 }
 
 const subtotal = computed(() => detail.value ? addCents(...detail.value.items.map(i => i.priceCents)) : '0');

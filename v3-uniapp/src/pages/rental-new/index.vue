@@ -1,8 +1,14 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import IconBox from '../../components/IconBox/IconBox.vue';
+import { api_biz } from '../../api/client';
+import { useInfoStore } from '../../stores';
 
 const status = ref('DRAFT');
+
+const infoStore = useInfoStore();
+const customerId = ref('');
+onMounted(() => { void infoStore.load().then(() => { customerId.value = infoStore.customers[0]?.id || ''; }); });
 
 const form = ref({
     "equip": "电动喷涂机",
@@ -104,18 +110,21 @@ const steps = ["DRAFT","SUBMITTED","DISPATCHED","RETURNED"];
 const stepLabels = ["草稿","已提交","已派发","已归还"];
 const currentStepIndex = computed(() => steps.indexOf(status.value));
 
-function onSubmit() {
+async function onSubmit() {
   if (status.value !== 'DRAFT') return;
-  uni.showModal({
-    title: '确认提交 设备租赁申请?',
-    content: '提交后将进入审批流程',
-    success: function(res) {
-      if (res.confirm) {
-        status.value = 'SUBMITTED';
-        uni.showToast({ title: '已提交审批', icon: 'success' });
-      }
-    },
-  });
+  if (!customerId.value) { uni.showToast({ title: '客户未加载', icon: 'none' }); return; }
+  const payload: any = { customerId: customerId.value, itemName: form.value.equip, startDate: form.value.from, endDate: form.value.to, dailyRateCents: String(Math.round((parseFloat(form.value.pricePerDay) || 0) * 100)) };
+  if (form.value.note) payload.remark = form.value.site + ' / ' + form.value.contact;
+  const confirm = await new Promise<boolean>(r => uni.showModal({ title: '确认提交 设备租赁申请?', content: '提交后将进入审批流程', success: s => r(s.confirm) }));
+  if (!confirm) return;
+  try {
+    await api_biz.create('RENTAL', payload);
+    status.value = 'SUBMITTED';
+    uni.showToast({ title: '已提交审批', icon: 'success' });
+    setTimeout(() => uni.navigateBack(), 800);
+  } catch (e: any) {
+    uni.showToast({ title: e?.msg || '提交失败', icon: 'none' });
+  }
 }
 
 function onSave() {

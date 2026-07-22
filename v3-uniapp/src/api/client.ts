@@ -16,6 +16,7 @@ let accessToken = '';
 let refreshToken = '';
 let onUnauthorized: ((reason: 'expired' | 'refreshFailed') => void) | null = null;
 let refreshing: Promise<TokenPair> | null = null;
+let authNoticeSent = false;
 
 function genTraceparent(): string {
   const traceId = uuidv4().replace(/-/g, '');
@@ -63,7 +64,7 @@ function toBizError(http: number, code: number, msg: string, traceId?: string): 
   return new BizError({ http, code, msg: friendlyMessage(code, msg), traceId });
 }
 
-function rawRequest<T>(path: string, method: 'GET' | 'POST' | 'PATCH' = 'GET', data?: unknown, tokenOverride?: string, skipAuth = false): Promise<Envelope<T>> {
+function rawRequest<T>(path: string, method: 'GET' | 'POST' | 'PATCH' = 'GET', data?: unknown, tokenOverride?: string, skipAuth = false, extraHeaders?: AnyRecord): Promise<Envelope<T>> {
   return new Promise((resolve, reject) => {
     const headers: AnyRecord = {
       'Accept-Language': 'zh-CN',
@@ -74,6 +75,7 @@ function rawRequest<T>(path: string, method: 'GET' | 'POST' | 'PATCH' = 'GET', d
       if (token) headers.Authorization = `Bearer ${token}`;
     }
     if (method !== 'GET') headers['Idempotency-Key'] = uuidv4();
+    if (extraHeaders) Object.assign(headers, extraHeaders);
     uni.request({
       url: BASE + path,
       method,
@@ -104,19 +106,23 @@ async function refreshTokens(): Promise<TokenPair> {
 }
 
 
-export async function request<T>(path: string, method: 'GET' | 'POST' | 'PATCH' = 'GET', data?: unknown): Promise<Envelope<T>> {
+export async function request<T>(path: string, method: 'GET' | 'POST' | 'PATCH' = 'GET', data?: unknown, extraHeaders?: AnyRecord): Promise<Envelope<T>> {
   if (!accessToken) loadTokens();
   try {
-    return await rawRequest<T>(path, method, data);
+    return await rawRequest<T>(path, method, data, undefined, false, extraHeaders);
   } catch (error) {
-    if (error instanceof BizError && (error.code === 20100 || error.code === 20104) && refreshToken) {
+    if (error instanceof BizError && (error.code === 20100 || error.code === 20104)) {
+      if (!refreshToken) {
+        clearTokens();
+        if (onUnauthorized && !authNoticeSent) { authNoticeSent = true; onUnauthorized('expired'); }
+        throw error;
+      }
       try {
         await refreshTokens();
-        if (onUnauthorized) onUnauthorized('expired');
-        return await rawRequest<T>(path, method, data);
+        return await rawRequest<T>(path, method, data, undefined, false, extraHeaders);
       } catch (refreshError) {
         clearTokens();
-        if (onUnauthorized) onUnauthorized('refreshFailed');
+        if (onUnauthorized && !authNoticeSent) { authNoticeSent = true; onUnauthorized('refreshFailed'); }
         throw refreshError;
       }
     }
@@ -127,6 +133,7 @@ export async function request<T>(path: string, method: 'GET' | 'POST' | 'PATCH' 
 export async function loginWithCredentials(username: string, password: string): Promise<TokenPair> {
   const res = await rawRequest<TokenPair>('/auth/login', 'POST', { username, password }, '', true);
   saveTokens(res.data);
+  authNoticeSent = false;
   return res.data;
 }
 
@@ -156,6 +163,9 @@ export const api_orders = {
     return { ...result, data: { ...result.data, items: result.data.items.map((o: any) => ({ no: o.no, cust: o.customerName, amt: Number(o.amtCents) / 100, status: o.status, qty: o.qty, date: o.orderDate })) } };
   },
   byId: (id: string) => request<any>(`/orders/${encodeURIComponent(id)}`),
+  // PATCH /orders/:id/status — If-Match is the order's current version; server returns 10009 on mismatch
+  updateStatus: (id: string, status: string, version: number, remark?: string) =>
+    request<any>(`/orders/${encodeURIComponent(id)}/status`, 'PATCH', { status, remark }, { 'If-Match': String(version) }),
 };
 
 export const api_aftersales = {
@@ -164,6 +174,9 @@ export const api_aftersales = {
     return { ...result, data: { ...result.data, items: result.data.items.map((a: any) => ({ no: a.no, material: a.material, order: a.orderNo, reason: a.reason, status: a.status, date: a.occurredAt.slice(0, 10) })) } };
   },
   byId: (id: string) => request<any>(`/aftersales/${encodeURIComponent(id)}`),
+  // PATCH /aftersales/:id/status — same If-Match pattern as orders
+  updateStatus: (id: string, status: string, version: number, remark?: string) =>
+    request<any>(`/aftersales/${encodeURIComponent(id)}/status`, 'PATCH', { status, remark }, { 'If-Match': String(version) }),
 };
 
 export const api_projects = {
@@ -192,14 +205,20 @@ export const api_biz = {
   },
   summary: (kind?: string) => request<any>(`/biz/summary${kind ? '?kind=' + encodeURIComponent(kind) : ''}`),
   create: (kind: string, body: unknown) => request<any>(`/biz/${encodeURIComponent(kind)}`, 'POST', body),
+  // PATCH /biz/:id/status — If-Match version; body shape { status, remark? }
+  updateStatus: (id: string, status: string, version: number, remark?: string) =>
+    request<any>(`/biz/${encodeURIComponent(id)}/status`, 'PATCH', { status, remark }, { 'If-Match': String(version) }),
 };
 
 export const api_workbench = {
   load: async () => {
+    const safe = async <T,>(call: () => Promise<T>, fallback: T): Promise<T> => {
+      try { return await call(); } catch { return fallback; }
+    };
     const [report, todos, summary] = await Promise.all([
-      request<any>('/me/reports?period=MONTH'),
-      request<any>('/follow/todos?page=1&size=20'),
-      request<any>('/biz/summary'),
+      safe(() => request<any>('/me/reports?period=MONTH'), { data: { gmvCents: '0', orderCount: '0', aftersaleCount: '0', completion: 0, byWeek: [] } } as any),
+      safe(() => request<any>('/follow/todos?page=1&size=20'), { data: { items: [] } } as any),
+      safe(() => request<any>('/biz/summary'), { data: { items: [] } } as any),
     ]);
     const summaryByKind: Record<string, { total: number; byStatus: Record<string, number> }> = {};
     for (const row of summary.data.items) {

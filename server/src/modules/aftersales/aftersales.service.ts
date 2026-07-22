@@ -3,7 +3,7 @@ import { AftersaleReason, AftersaleStatus, Prisma } from '@prisma/client';
 import { ApiException } from '../../common/filters/api.exception';
 import { AuthenticatedUser } from '../../common/types';
 import { PrismaService } from '../../infra/prisma/prisma.service';
-import { AftersaleQuery, CreateAftersaleInput } from './aftersales.schemas';
+import { AftersaleQuery, AftersaleStatusInput, CreateAftersaleInput } from './aftersales.schemas';
 
 const aftersaleSelect = {
   id: true,
@@ -102,6 +102,38 @@ export class AftersalesService {
       select: aftersaleSelect,
     });
     return this.serialize(aftersale);
+  }
+
+  async updateStatus(identifier: string, version: number, input: AftersaleStatusInput): Promise<unknown> {
+    const aftersale = await this.prisma.aftersale.findFirst({
+      where: { OR: [{ id: identifier }, { no: identifier }], isDeleted: false },
+      select: { id: true, status: true, version: true },
+    });
+    if (!aftersale) {
+      throw new ApiException(10404, `售后 ${identifier} 不存在`, HttpStatus.NOT_FOUND);
+    }
+    if (aftersale.version !== version) {
+      throw new ApiException(10009, 'version 不匹配，请刷新后重试', HttpStatus.CONFLICT);
+    }
+    // ponytail: 售后状态机很简单，PENDING_OA -> IN_HANDLING -> CLOSED/REJECTED，SAP_CREATED 由 SAP 集成写入
+    const allowed: Record<AftersaleStatus, AftersaleStatus[]> = {
+      PENDING_OA: ['IN_HANDLING', 'REJECTED'],
+      SAP_CREATED: ['IN_HANDLING', 'CLOSED'],
+      IN_HANDLING: ['CLOSED', 'REJECTED'],
+      CLOSED: [],
+      REJECTED: [],
+    };
+    if (!allowed[aftersale.status].includes(input.status)) {
+      throw new ApiException(10008, `${aftersale.status} 不能跃迁到 ${input.status}`, HttpStatus.CONFLICT);
+    }
+    const updated = await this.prisma.aftersale.updateMany({
+      where: { id: aftersale.id, version, isDeleted: false },
+      data: { status: input.status, version: { increment: 1 } },
+    });
+    if (updated.count !== 1) {
+      throw new ApiException(10009, 'version 不匹配，请刷新后重试', HttpStatus.CONFLICT);
+    }
+    return this.findOne(identifier);
   }
 
   private async nextNumber(): Promise<string> {

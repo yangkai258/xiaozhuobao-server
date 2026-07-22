@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { api_ai } from '../../api/client';
 
 const aiIcons: Record<string, string> = {
@@ -12,7 +12,7 @@ onMounted(async () => {
     const r = await api_ai.modules();
     modules.value = r.data;
   } catch {
-    // AI modules not yet reachable; keep empty list so the UI renders 6 placeholder cards
+    // ponytail: module failure leaves the section empty instead of showing stale data
   }
 });
 
@@ -26,11 +26,11 @@ const dynamic = [
 ];
 
 // KPI 精简
-const kpis = [
-  { label: '调用次数', value: '38',  sub: '本周' },
-  { label: '采纳建议', value: '12',  sub: '本周' },
-  { label: '采纳率',   value: '31%', sub: '本周' },
-];
+const kpis = computed(() => [
+  { label: '可用模块', value: String(modules.value.length), sub: '实时' },
+  { label: '调用次数', value: '待对接', sub: '近 7 日' },
+  { label: '采纳率', value: '待对接', sub: '近 7 日' },
+]);
 
 function onPick(m: any) {
   uni.showToast({ title: m.name + ' · AI 调用中', icon: 'none' });

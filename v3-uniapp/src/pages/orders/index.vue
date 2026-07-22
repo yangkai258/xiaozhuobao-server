@@ -3,6 +3,7 @@ import FabAI from '../../components/FabAI/FabAI.vue';
 import { ref, computed, onMounted } from 'vue';
 import IconBox from '../../components/IconBox/IconBox.vue';
 import { useInfoStore } from '../../stores';
+import { formatYuan } from '../../utils/amount';
 
 const tab = ref<'orders' | 'aftersales'>('orders');
 const infoStore = useInfoStore();
@@ -27,11 +28,15 @@ function styleOf(status: string) {
 }
 
 // KPI 精简到 3 个
-const orderKpi = [
-  { label: '本月 GMV', value: '482,610', sub: '元', kind: 'ok' },
-  { label: '待处理',   value: '6',       sub: '单', kind: 'warn' },
-  { label: '订单总数', value: '28',      sub: '单', kind: 'mute' },
-];
+const orderKpi = computed(() => {
+  const total = infoStore.orders.reduce((sum, order) => sum + order.amt, 0);
+  const pending = infoStore.orders.filter((order) => !['已完成', '已取消'].includes(order.status)).length;
+  return [
+    { label: '本月 GMV', value: formatYuan(total), sub: '元', kind: 'ok' },
+    { label: '待处理', value: String(pending), sub: '单', kind: 'warn' },
+    { label: '订单总数', value: String(infoStore.orders.length), sub: '单', kind: 'mute' },
+  ];
+});
 
 function onPick(o: any) {
   if (tab.value === 'aftersales') {

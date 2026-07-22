@@ -39,26 +39,27 @@ function statusColor(s: string) {
 }
 
 const list = computed(() => {
-  if (view.value === 'customers') return infoStore.customers.map(c => ({
-    name: c.name, no: c.code, status: c.status, meta: c.contact + ' · ' + c.addr,
-    tag: 'customer',
-  }));
-  if (view.value === 'projects')  return infoStore.projects.map(p => ({
-    name: p.name, no: p.no, status: p.status,
-    meta: p.customerName + ' · ¥' + formatCents(p.amtCents),
-    tag: 'project',
-  }));
-  if (view.value === 'contracts') return infoStore.contracts.map(c => ({
-    name: c.name, no: c.no, status: c.status,
-    meta: (c.signedBy || c.customerName) + ' · ¥' + formatCents(c.amtCents) + (c.fileUrl ? '' : ' · 待盖章'),
-    tag: 'contract',
-  }));
-  if (view.value === 'products')  return infoStore.products.map(p => ({
-    name: p.name, no: p.no,
-    status: p.stock < 50 ? '库存预警' : '库存充足',
-    meta: p.spec + ' · ' + p.cat + ' · ¥' + p.price + '/' + p.unit,
-    tag: 'product',
-  }));
+  const kw = keyword.value.trim().toLowerCase();
+  const matchKw = (name: string, no: string) => !kw || name.toLowerCase().includes(kw) || (no || '').toLowerCase().includes(kw);
+  if (view.value === 'customers') {
+    let rows = infoStore.customers.map(c => ({ name: c.name, no: c.code, status: c.status, cat: c.cat, meta: c.contact + ' · ' + c.addr, tag: 'customer', id: c.id }));
+    const tab = subTab.value;
+    if (tab === 1) rows = rows.filter(c => c.cat === '客户');
+    else if (tab === 2) rows = rows.filter(c => c.cat === '经销商');
+    else if (tab === 3) rows = rows.filter(c => c.status === '已生效');
+    else if (tab === 4) rows = rows.filter(c => c.status === '审批中');
+    return rows.filter(r => matchKw(r.name, r.no));
+  }
+  if (view.value === 'projects') return infoStore.projects.map(p => ({ name: p.name, no: p.no, status: p.status, meta: p.customerName + ' · ¥' + formatCents(p.amtCents), tag: 'project', id: p.id })).filter(r => matchKw(r.name, r.no));
+  if (view.value === 'contracts') return infoStore.contracts.map(c => ({ name: c.name, no: c.no, status: c.status, meta: (c.signedBy || c.customerName) + ' · ¥' + formatCents(c.amtCents) + (c.fileUrl ? '' : ' · 待卷签'), tag: 'contract', id: c.id })).filter(r => matchKw(r.name, r.no));
+  if (view.value === 'products') {
+    let rows = infoStore.products.map(p => ({ name: p.name, no: p.no, cat: p.cat, status: p.stock < 50 ? '库存预警' : '库存充足', meta: p.spec + ' · ' + p.cat + ' · ¥' + p.price + '/' + p.unit, tag: 'product', id: p.id }));
+    const tab = subTab.value;
+    if (tab === 1) rows = rows.filter(r => r.cat === '防水材料');
+    else if (tab === 2) rows = rows.filter(r => r.cat === '节能材料');
+    else if (tab === 3) rows = rows.filter(r => r.cat === '装饰');
+    return rows.filter(r => matchKw(r.name, r.no));
+  }
   return [];
 });
 
@@ -68,6 +69,7 @@ const subTabs = computed(() => {
   return null;
 });
 const subTab = ref(0);
+const keyword = ref('');
 
 function onCreate() {
   uni.showToast({ title: '新建 · ' + tabs.value.find(t => t.id === view.value)?.label, icon: 'none' });
@@ -76,8 +78,12 @@ function onCreate() {
 function onPick(it: any) {
   if (view.value === 'customers') {
     uni.navigateTo({ url: '/pages/customer-detail/index?bp=' + encodeURIComponent(it.no) });
-  } else {
-    uni.showToast({ title: it.name + ' · 详情页', icon: 'none' });
+  } else if (view.value === 'projects') {
+    uni.navigateTo({ url: '/pages/project-detail/index?id=' + encodeURIComponent(it.id || it.no) });
+  } else if (view.value === 'contracts') {
+    uni.navigateTo({ url: '/pages/contract-detail/index?id=' + encodeURIComponent(it.id || it.no) });
+  } else if (view.value === 'products') {
+    uni.navigateTo({ url: '/pages/product-detail/index?id=' + encodeURIComponent(it.id || it.no) });
   }
 }
 </script>
@@ -102,7 +108,7 @@ function onPick(it: any) {
     <view class="search">
       <view class="search-input">
         <IconBox name="search" :size="14" color="var(--c-mute)"/>
-        <text class="ph">客商名称 / 项目 / 物料号</text>
+        <input v-model="keyword" class="search-text" placeholder="客商名称 / 项目 / 物料号" placeholder-class="ph" />
       </view>
     </view>
 
@@ -182,6 +188,7 @@ function onPick(it: any) {
   border: 1px solid var(--c-line-soft); border-radius: var(--r-md);
 }
 .ph { font-size: 13px; color: var(--c-mute); }
+.search-text { flex: 1; font-size: 13px; color: var(--c-ink); background: transparent; border: 0; padding: 0; }
 
 /* 主 tab 统一描边 */
 .hub-switch {

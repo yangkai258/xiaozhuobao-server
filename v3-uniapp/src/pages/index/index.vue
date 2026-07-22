@@ -2,6 +2,7 @@
 import { computed, onMounted } from 'vue';
 import IconBox from '../../components/IconBox/IconBox.vue';
 import { useWorkbenchStore } from '../../stores';
+import { formatCents } from '../../utils/amount';
 
 const pathToIcon: Record<string, string> = {
   '/pages/meeting-new/index':   'meeting',
@@ -21,36 +22,23 @@ const enrichedBiz = computed(() => workbenchStore.biz.map(b => ({
   pending: String(b.pending ?? '0'),
 })));
 
-const builtPaths = new Set<string>([
-  '/pages/shipment-new/index',
-]);
-
 function goBiz(b: any) {
-  if (builtPaths.has(b.path)) {
-    uni.navigateTo({ url: b.path });
-  } else {
-    uni.showToast({ title: b.name + ' · 即将上线', icon: 'none' });
-  }
+  uni.navigateTo({ url: b.path });
 }
 
 // KPI 3 列档案卡
-const kpis = [
-  { label: '本月 GMV', value: '482K', unit: '元', kind: 'ok', delta: '+12.4%' },
-  { label: '待办',     value: '6',    unit: '项', kind: 'warn', delta: '今日新增' },
-  { label: '业绩排名', value: '#3',   unit: '区', kind: 'mute', delta: '上海区' },
-];
+const workbenchStore = useWorkbenchStore();
+const kpis = computed(() => [
+  { label: '本月 GMV', value: formatCents(workbenchStore.gmvCents), unit: '元', kind: 'ok', delta: '实时数据' },
+  { label: '待办', value: String(workbenchStore.todos.length), unit: '项', kind: 'warn', delta: '当前待处理' },
+  { label: '订单数', value: workbenchStore.orderCount, unit: '单', kind: 'mute', delta: '本月累计' },
+]);
 
 // 待办档案卡（按优先级/状态变色）
 type Todo = { no: string; title: string; cust: string; amt: string; status: string; date: string; priority: 'high' | 'mid' | 'low'; icon: string };
-const fallbackTodos: Todo[] = [
-  { no: 'SO20260716-001', title: '客户紧急补货审批', cust: '上海建工建材', amt: '12,480.00', status: '待确认',  date: '07-14', priority: 'high', icon: 'ship' },
-  { no: 'SO20260715-023', title: '特价审批 / 财务审核', cust: '深圳南方装饰', amt: '5,220.00',  status: '待处理',  date: '07-15', priority: 'mid',  icon: 'approval' },
-  { no: 'SO20260712-008', title: '客户跟进 / 拜访',    cust: '东莞旗卷贸易', amt: '8,750.00',  status: '今日完成', date: '07-12', priority: 'low',  icon: 'follow' },
-];
 
-const workbenchStore = useWorkbenchStore();
 onMounted(() => { void workbenchStore.load(); });
-const todos = computed<Todo[]>(() => workbenchStore.todos.length ? workbenchStore.todos.map((t, index) => ({ no: 'todo-' + index, title: t.h, cust: t.sub, amt: '—', status: t.due, date: '', priority: 'mid', icon: 'follow' })) : fallbackTodos);
+const todos = computed<Todo[]>(() => workbenchStore.todos.map((t, index) => ({ no: 'todo-' + index, title: t.h, cust: t.sub, amt: '—', status: t.due, date: '', priority: 'mid', icon: 'follow' })));
 
 const pendingTotal = computed(() => workbenchStore.biz.reduce((s, b) => s + (Number(b.pending) || 0), 0));
 const PRIORITY = {
@@ -114,7 +102,7 @@ const PRIORITY = {
     <view class="section">
       <view class="section-head">
         <text class="section-title">今日待办</text>
-        <text class="section-meta">3 项</text>
+        <text class="section-meta">{{ todos.length }} 项</text>
       </view>
       <view class="todo-list">
         <view
