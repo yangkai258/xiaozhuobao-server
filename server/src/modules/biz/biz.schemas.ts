@@ -134,6 +134,7 @@ export const bizKindSchema = z.nativeEnum(BizKind);
 
 export const bizQuerySchema = z.object({
   kind: z.nativeEnum(BizKind).optional(),
+  filter_status: z.nativeEnum(BizStatus).optional(),
   page: z.coerce.number().int().min(1).default(1),
   size: z.coerce.number().int().min(1).max(100).default(20),
 });

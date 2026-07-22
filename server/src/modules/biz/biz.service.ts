@@ -14,6 +14,7 @@ export class BizService {
     const where: Prisma.BizSubmissionWhereInput = {
       isDeleted: false,
       ...(query.kind ? { kind: query.kind } : {}),
+      ...(query.filter_status ? { status: query.filter_status } : {}),
     };
     const [items, total] = await Promise.all([
       this.prisma.bizSubmission.findMany({
