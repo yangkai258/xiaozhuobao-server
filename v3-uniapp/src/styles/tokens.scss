@@ -1,0 +1,46 @@
+﻿/* 设计令牌 — 与 v2 锁定对齐 */
+
+:root {
+  --c-ink:        #0E1419;
+  --c-paper:      #F6F2EC;
+  --c-paper-2:    #FFFFFF;
+  --c-accent:     #E8542C;
+  --c-accent-soft:#FBE8DF;
+
+  --c-blue:       #2E5A88;
+  --c-green:      #2E7D5B;
+  --c-green-soft: #E0EFE7;
+  --c-gold:       #B07F1F;
+  --c-gold-soft:  #F4ECDA;
+  --c-grey:       #5B6470;
+  --c-silver:     #8A95A3;
+
+  --c-ok:         #2E7D5B;
+  --c-ok-soft:    #E0EFE7;
+  --c-warn:       #B07F1F;
+  --c-warn-soft:  #F4ECDA;
+  --c-danger:     #A03A2E;
+  --c-danger-soft:#F2DDD8;
+  --c-mute:       #A8AEB6;
+  --c-line:       #E4DED4;
+  --c-line-soft:  #EFEAE2;
+  --c-steel:      #5B6470;
+  --c-steel-light:#8A95A3;
+
+  --ff-display:'Space Grotesk','Inter',system-ui,sans-serif;
+  --ff-body:'Inter','Noto Sans SC',system-ui,sans-serif;
+  --ff-mono:'JetBrains Mono','SF Mono',ui-monospace,monospace;
+  --ff-cn:'Noto Sans SC','PingFang SC',system-ui,sans-serif;
+
+  --r-card: 2px;
+  --r-pill: 999px;
+  --r-md: 8px;
+  --r-lg: 12px;
+
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 22px;
+  --s-6: 32px;
+}

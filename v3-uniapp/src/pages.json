@@ -1,0 +1,52 @@
+{
+  "pages": [
+    { "path": "pages/index/index",  "style": { "navigationBarTitleText": "工作台", "navigationStyle": "custom" } },
+    { "path": "pages/info/index",   "style": { "navigationBarTitleText": "资讯",   "navigationStyle": "custom" } },
+    { "path": "pages/orders/index", "style": { "navigationBarTitleText": "订单",   "navigationStyle": "custom" } },
+    { "path": "pages/ai/index",     "style": { "navigationBarTitleText": "AI 工作台", "navigationStyle": "custom" } },
+    { "path": "pages/me/index",     "style": { "navigationBarTitleText": "我的",   "navigationStyle": "custom" } },
+    { "path": "pages/shipment-new/index",    "style": { "navigationBarTitleText": "无订单发货", "navigationStyle": "custom" } },
+    { "path": "pages/order-detail/index",    "style": { "navigationBarTitleText": "订单详情", "navigationStyle": "custom" } },
+    { "path": "pages/customer-detail/index", "style": { "navigationBarTitleText": "客户详情", "navigationStyle": "custom" } },
+    { "path": "pages/aftersale-detail/index","style": { "navigationBarTitleText": "售后详情", "navigationStyle": "custom" } },
+    { "path": "pages/meeting-new/index",     "style": { "navigationBarTitleText": "会议推广", "navigationStyle": "custom" } },
+    { "path": "pages/stocking-new/index",    "style": { "navigationBarTitleText": "涂无忧备货", "navigationStyle": "custom" } },
+    { "path": "pages/advert-new/index",      "style": { "navigationBarTitleText": "广告申请", "navigationStyle": "custom" } },
+    { "path": "pages/store-new/index",       "style": { "navigationBarTitleText": "建店核销", "navigationStyle": "custom" } },
+    { "path": "pages/subsidy-new/index",     "style": { "navigationBarTitleText": "仓储补贴", "navigationStyle": "custom" } },
+    { "path": "pages/rental-new/index",      "style": { "navigationBarTitleText": "设备租赁", "navigationStyle": "custom" } },
+    { "path": "pages/complaint-new/index",   "style": { "navigationBarTitleText": "外部投诉", "navigationStyle": "custom" } }
+  ],
+  "globalStyle": {
+    "navigationStyle": "custom",
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "销卓宝",
+    "navigationBarBackgroundColor": "#F6F2EC",
+    "backgroundColor": "#1a1f24"
+  },
+  "tabBar": {
+    "color": "#A8AEB6",
+    "selectedColor": "#E8542C",
+    "backgroundColor": "#0E1419",
+    "borderStyle": "black",
+    "midButton": {
+      "width": "68px",
+      "height": "68px",
+      "text": "",
+      "iconPath": "static/tabbar-ai.png",
+      "iconWidth": "36px",
+      "iconHeight": "36px",
+      "backgroundColor": "#E8542C",
+      "fontSize": "11px",
+      "fontColor": "#FFFFFF",
+      "fontWeight": "700"
+    },
+    "list": [
+      { "pagePath": "pages/index/index",  "text": "工作台" },
+      { "pagePath": "pages/info/index",   "text": "资讯" },
+      { "pagePath": "pages/ai/index",     "text": "AI" },
+      { "pagePath": "pages/orders/index", "text": "订单" },
+      { "pagePath": "pages/me/index",     "text": "我的" }
+    ]
+  }
+}
