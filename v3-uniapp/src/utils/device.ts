@@ -21,7 +21,7 @@ declare const uni: { getSystemInfoSync: () => { platform: string; screenWidth: n
 let cached: DeviceInfo | null = null;
 
 export function detectDevice(): DeviceInfo {
-  if (cached) return cached;
+  if (cached) return cached!;
   // #ifdef MP-WEIXIN
   cached = {
     mode: 'mp-mini',
@@ -31,7 +31,7 @@ export function detectDevice(): DeviceInfo {
     width: 375,
     height: 812,
   };
-  return cached;
+  return cached!;
   // #endif
   // #ifdef H5
   const w = typeof window !== 'undefined' ? window.innerWidth : 375;
@@ -47,7 +47,7 @@ export function detectDevice(): DeviceInfo {
     width: w,
     height: h,
   };
-  return cached;
+  return cached!;
   // #endif
   cached = {
     mode: 'mp-h5',
@@ -57,7 +57,7 @@ export function detectDevice(): DeviceInfo {
     width: 375,
     height: 812,
   };
-  return cached;
+  return cached!;
 }
 
 /** 单行 helper：判断是不是桌面 H5（PC 浏览器） */

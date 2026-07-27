@@ -79,8 +79,8 @@ function rawRequest<T>(path: string, method: 'GET' | 'POST' | 'PATCH' = 'GET', d
     if (extraHeaders) Object.assign(headers, extraHeaders);
     uni.request({
       url: BASE + path,
-      method,
-      data,
+      method: method as UniNamespace.RequestOptions['method'],
+      data: data as UniNamespace.RequestOptions['data'],
       header: headers,
       success: (response) => {
         const body = response.data as Envelope<T>;
@@ -248,10 +248,27 @@ export const api_workbench = {
   },
 };
 
+export interface InvokePayload {
+  prompt: string;
+  context?: AnyRecord;
+  attachments?: Array<{ fileId: string; kind: 'image' | 'file' }>;
+  intentHints?: Array<'customer_qualification' | 'data_query' | 'kb_query' | 'draft'>;
+}
+
 export const api_ai = {
   modules: () => request<any>('/ai/modules'),
-  invoke: (module: string, prompt: string, context: AnyRecord = {}) => request<any>(`/ai/${module}/invoke`, 'POST', { prompt, context }),
+  invoke: (module: string, payload: InvokePayload) => request<any>(`/ai/${module}/invoke`, 'POST', payload),
   history: (module: string) => request<any>(`/ai/${module}/history`),
+};
+
+export const api_feature = {
+  // ponytail: phase one returns AI_HOME only; phase two broadens to per-feature flags.
+  get: () => request<{ AI_HOME: boolean }>('/feature'),
+};
+
+export const api_storage_ai = {
+  // ponytail: dedicated endpoint that caps AI attachments at 8MB and accepts image/jpeg, image/png, application/pdf only.
+  upload: (payload: { name: string; mimeType: string; base64: string }) => request<any>('/storage/upload-ai', 'POST', payload),
 };
 
 export const api_me = {
