@@ -6,6 +6,10 @@ import {
 import { formatCents } from '../../utils/amount';
 import { useInfoStore } from '../../stores';
 import IconBox from '../../components/IconBox/IconBox.vue';
+import { api_biz } from '../../api/client';
+
+// ponytail: shipment UI status maps to backend BizStatus DRAFT/PENDING/APPROVED/CLOSED/REJECTED.
+const SHIPMENT_TO_BIZ: Record<ShipmentStatus, 'DRAFT' | 'PENDING' | 'APPROVED' | 'CLOSED' | 'REJECTED'> = { DRAFT: 'DRAFT', SUBMITTED: 'PENDING', DISPATCHED: 'APPROVED', DELIVERED: 'CLOSED', CANCELED: 'REJECTED' };
 
 const status = ref<ShipmentStatus>('DRAFT');
 const bizId = ref('');
@@ -81,9 +85,15 @@ async function onAction(act: any) {
     }
     return;
   }
-  // SUBMITTED ??????????????? ADMIN ? PATCH /biz/:id/status ??
-  status.value = act.target;
-  uni.showToast({ title: '状态已更新', icon: 'success' });
+  if (!bizId.value) { uni.showToast({ title: '请先提交', icon: 'none' }); return; }
+  try {
+    const cur = await api_biz.byId(bizId.value);
+    const target = SHIPMENT_TO_BIZ[act.to as ShipmentStatus];
+    await api_biz.updateStatus(bizId.value, target, (cur.data as any).version, act.to === 'CANCELED' ? '发货撤回' : undefined);
+    status.value = act.to;
+    uni.showToast({ title: '状态已更新', icon: 'success' });
+  } catch (e: any) {
+    uni.showToast({ title: e?.msg || (e?.code === 10009 ? '状态已被他人修改，请刷新' : '操作失败'), icon: 'none' });
 }
 
 function onSave() {

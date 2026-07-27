@@ -206,6 +206,7 @@ export const api_biz = {
   },
   summary: (kind?: string) => request<any>(`/biz/summary${kind ? '?kind=' + encodeURIComponent(kind) : ''}`),
   create: (kind: string, body: unknown) => request<any>(`/biz/${encodeURIComponent(kind)}`, 'POST', body),
+  byId: (id: string) => request<any>(`/biz/${encodeURIComponent(id)}`),
   // PATCH /biz/:id/status — If-Match version; body shape { status, remark? }
   updateStatus: (id: string, status: string, version: number, remark?: string) =>
     request<any>(`/biz/${encodeURIComponent(id)}/status`, 'PATCH', { status, remark }, { 'If-Match': String(version) }),
