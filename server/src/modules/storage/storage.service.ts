@@ -7,7 +7,9 @@ import { ApiException } from '../../common/filters/api.exception';
 import { AuthenticatedUser } from '../../common/types';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import {
+  AI_ALLOWED_MIME_TYPES,
   ALLOWED_MIME_TYPES,
+  MAX_AI_UPLOAD_BYTES,
   MAX_UPLOAD_BYTES,
   STORAGE_DRIVER_LOCAL,
 } from './storage.constants';
@@ -21,6 +23,14 @@ export interface UploadResult {
   sizeBytes: number;
   originalName: string;
   expiresAt: string | null;
+}
+
+export interface AiUploadResult {
+  fileId: string;
+  url: string;
+  mime: string;
+  size: number;
+  name: string;
 }
 
 export interface SignUrlResult {
@@ -82,6 +92,44 @@ export class StorageService {
       originalName: record.originalName,
       expiresAt: record.expiresAt?.toISOString() ?? null,
     };
+  }
+
+  async uploadAi(input: UploadInput, user: AuthenticatedUser): Promise<AiUploadResult> {
+    if (!AI_ALLOWED_MIME_TYPES.has(input.mimeType)) {
+      throw new ApiException(50403, 'AI 对话不支持该附件类型: ' + input.mimeType, HttpStatus.UNSUPPORTED_MEDIA_TYPE);
+    }
+    const buffer = Buffer.from(input.base64, 'base64');
+    if (buffer.length === 0) {
+      throw new ApiException(50403, 'AI 附件内容为空', HttpStatus.UNSUPPORTED_MEDIA_TYPE);
+    }
+    if (buffer.length > MAX_AI_UPLOAD_BYTES) {
+      throw new ApiException(50402, 'AI 附件过大 (>' + MAX_AI_UPLOAD_BYTES / 1024 / 1024 + 'MB)', HttpStatus.PAYLOAD_TOO_LARGE);
+    }
+    try {
+      const objectKey = this.buildObjectKey(user.id, input.name);
+      await fs.mkdir(path.dirname(this.resolvePath(objectKey)), { recursive: true });
+      await fs.writeFile(this.resolvePath(objectKey), buffer);
+      const record = await this.prisma.storedFile.create({
+        data: {
+          objectKey,
+          originalName: input.name,
+          mimeType: input.mimeType,
+          sizeBytes: buffer.length,
+          driver: this.driver,
+          storageUrl: this.toPublicUrl(objectKey),
+          uploadedById: user.id,
+        },
+      });
+      return {
+        fileId: record.id,
+        url: record.storageUrl,
+        mime: record.mimeType,
+        size: record.sizeBytes,
+        name: record.originalName,
+      };
+    } catch {
+      throw new ApiException(50401, 'AI 附件上传失败', HttpStatus.SERVICE_UNAVAILABLE);
+    }
   }
 
   signUrl(input: SignUrlInput): SignUrlResult {

@@ -9,7 +9,6 @@ import { ResponseInterceptor } from './common/interceptors/response.interceptor'
 import { IdempotencyInterceptor } from './common/interceptors/idempotency.interceptor';
 import { CacheControlInterceptor } from './common/interceptors/cache-control.interceptor';
 import { RequestLogInterceptor } from './common/interceptors/request-log.interceptor';
-import { StructuredLogger } from './common/logger/structured-logger';
 import { TraceIdMiddleware } from './common/middleware/trace-id.middleware';
 import { validateEnvironment } from './config/env';
 import { PrismaModule } from './infra/prisma/prisma.module';
@@ -27,6 +26,7 @@ import { OrdersModule } from './modules/orders/orders.module';
 import { ProductsModule } from './modules/products/products.module';
 import { ProjectsModule } from './modules/projects/projects.module';
 import { StorageModule } from './modules/storage/storage.module';
+import { FeatureModule } from './modules/feature/feature.module';
 import { ObservabilityModule } from './observability/observability.module';
 
 @Module({
@@ -55,9 +55,9 @@ import { ObservabilityModule } from './observability/observability.module';
     MeModule,
     HealthModule,
     StorageModule,
+    FeatureModule,
   ],
   providers: [
-    StructuredLogger,
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
     { provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },

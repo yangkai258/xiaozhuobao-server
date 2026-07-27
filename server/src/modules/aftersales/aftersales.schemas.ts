@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 export const aftersaleQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
-  size: z.coerce.number().int().min(1).max(100).default(20),
+  size: z.coerce.number().int().min(1).max(100).default(50),
   cursor: z.string().trim().optional(),
   filter_status: z.nativeEnum(AftersaleStatus).optional(),
 });

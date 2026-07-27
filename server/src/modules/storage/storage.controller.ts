@@ -34,6 +34,17 @@ export class StorageController {
     return this.storage.upload(body, user);
   }
 
+  @Post('upload-ai')
+  @HttpCode(201)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '上传 AI 对话附件（≤8MB，仅 image/jpeg、image/png、application/pdf）' })
+  uploadAi(
+    @Body(new ZodValidationPipe(uploadInputSchema)) body: UploadInput,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<unknown> {
+    return this.storage.uploadAi(body, user);
+  }
+
   @Post('sign-url')
   @HttpCode(200)
   @ApiBearerAuth()

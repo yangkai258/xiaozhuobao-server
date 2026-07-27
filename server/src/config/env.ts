@@ -4,6 +4,8 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().min(1).max(65535).default(4000),
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
+  FEATURE_AI_HOME: z.enum(['true', 'false']).default('false'),
+  RATE_LIMIT_AI: z.string().regex(/^[1-9]\d*\/[1-9]\d*(ms|s|m)$/).default('60/60s'),
   CORS_ORIGINS: z.string().default('http://localhost:5173,http://localhost:3000'),
   DATABASE_URL: z.string().url(),
   REDIS_URL: z.string().url().optional(),
