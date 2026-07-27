@@ -1,0 +1,164 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<title>销卓宝 · 20 屏关键帧动画</title>
+<style>
+﻿:root{
+  --paper:#F2EBDF;--paper-2:#FBF6EC;--paper-3:#EAE0CE;
+  --line:#DCD2C2;--ink:#16181B;--ink-2:#3B434B;--mute:#6F7780;
+  --accent:#E8542C;--accent-2:#C7431F;--ok:#2E7D5B;--warn:#B07F1F;--blue:#2E5A88;
+  --ff-serif:"Noto Serif SC","Source Han Serif SC",serif;
+  --ff-sans:"Noto Sans SC","PingFang SC",system-ui,sans-serif;
+  --ff-mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:#0E1216;color:#E6E1D6;font-family:var(--ff-sans);}
+.stage{position:relative;width:100vw;height:100vh;display:grid;grid-template-columns:280px 1fr 320px;align-items:center;justify-items:center;gap:40px;padding:0 60px;background:radial-gradient(900px 600px at 30% 10%,rgba(232,84,44,0.18),transparent 60%),radial-gradient(800px 600px at 80% 90%,rgba(46,90,136,0.16),transparent 65%);}
+.side{font-family:var(--ff-mono);font-size:11px;letter-spacing:0.18em;color:var(--mute);text-transform:uppercase;}
+.side-left .brand{display:flex;align-items:center;gap:14px;margin-bottom:36px;}
+.side-left .logo{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#FF6B3D,var(--accent));display:flex;align-items:center;justify-content:center;font-family:var(--ff-serif);font-weight:900;font-size:18px;color:#fff;}
+.side-left .bname{font-family:var(--ff-serif);font-size:14px;font-weight:700;letter-spacing:0.04em;color:var(--ink);text-transform:none;}
+.side-left .bsub{font-size:10px;color:var(--mute);margin-top:2px;letter-spacing:0.22em;}
+.side-left .kpi{margin:14px 0;}
+.side-left .kpi span{display:block;color:var(--mute);font-size:10px;margin-bottom:4px;}
+.side-left .kpi strong{display:block;color:var(--ink);font-family:var(--ff-serif);font-size:18px;font-weight:700;letter-spacing:0.02em;text-transform:none;}
+.side-left .kpi:first-of-type strong{color:var(--accent);}
+.side-right{justify-self:end;align-self:stretch;display:flex;flex-direction:column;padding-top:24px;}
+.side-right .vlabel{font-family:var(--ff-serif);font-size:28px;font-weight:900;color:var(--accent);letter-spacing:0.02em;text-transform:none;}
+.side-right .label{font-size:11px;color:var(--mute);line-height:1.8;margin-top:8px;}
+.side-right .legend{margin-top:24px;font-family:var(--ff-mono);font-size:11px;color:var(--mute);line-height:1.7;letter-spacing:0;text-transform:none;}
+.side-right .legend b{display:inline-block;width:24px;color:var(--accent);}
+.phone{position:relative;width:390px;height:844px;border-radius:46px;overflow:hidden;background:var(--paper);box-shadow:0 30px 80px rgba(0,0,0,0.55),0 0 0 8px #0E1216,0 0 0 10px #2A2F35,0 0 0 18px rgba(0,0,0,0.6);perspective:1200px;}
+.frame{position:absolute;inset:0;opacity:0;transform-origin:center center;}
+.frame.active{opacity:1;}
+.frame img{width:100%;height:100%;object-fit:cover;display:block;}
+.caption{position:absolute;left:0;right:0;bottom:64px;text-align:center;z-index:5;pointer-events:none;}
+.caption .num{font-family:var(--ff-mono);font-size:11px;letter-spacing:0.22em;color:var(--accent);background:rgba(255,253,248,0.78);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);padding:4px 10px;border-radius:20px;display:inline-block;}
+.caption .ttl{font-family:var(--ff-serif);font-weight:700;font-size:20px;color:var(--ink);margin-top:8px;letter-spacing:0.02em;text-shadow:0 1px 0 rgba(255,253,248,0.6);}
+.dots{position:absolute;left:0;right:0;bottom:140px;display:flex;gap:5px;justify-content:center;z-index:5;pointer-events:none;flex-wrap:wrap;max-width:340px;margin:0 auto;padding:0 24px;}
+.dots span{width:6px;height:6px;border-radius:50%;background:rgba(255,253,248,0.55);transition:background .3s,transform .3s;box-shadow:0 0 0 1px rgba(22,24,27,0.18);}
+.dots span.on{background:var(--accent);transform:scale(1.5);box-shadow:0 0 0 1px var(--accent),0 0 8px rgba(232,84,44,0.5);}
+.controls{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);display:flex;gap:10px;z-index:6;}
+.controls button{appearance:none;border:0;background:rgba(255,253,248,0.78);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);color:var(--ink);font-family:var(--ff-mono);font-size:10px;letter-spacing:0.18em;padding:8px 14px;border-radius:20px;cursor:pointer;border:1px solid rgba(255,255,255,0.5);box-shadow:0 6px 20px rgba(0,0,0,0.35);transition:transform .15s ease,background .2s;}
+.controls button:hover{background:rgba(255,253,248,0.95);}
+.controls button:active{transform:scale(0.96);}
+
+
+@keyframes kf-fade{from{opacity:0;transform:scale(1.02)}to{opacity:1;transform:scale(1)}}
+@keyframes kf-up{from{opacity:0;transform:translateY(28px)}to{opacity:1;transform:translateY(0)}}
+@keyframes kf-down{from{opacity:0;transform:translateY(-28px)}to{opacity:1;transform:translateY(0)}}
+@keyframes kf-left{from{opacity:0;transform:translateX(36px)}to{opacity:1;transform:translateX(0)}}
+@keyframes kf-right{from{opacity:0;transform:translateX(-36px)}to{opacity:1;transform:translateX(0)}}
+@keyframes kf-zoom{from{opacity:0;transform:scale(0.94)}to{opacity:1;transform:scale(1)}}
+@keyframes kf-blur{from{opacity:0;filter:blur(14px);transform:scale(1.02)}to{opacity:1;filter:blur(0);transform:scale(1)}}
+@keyframes kf-flip{from{opacity:0;transform:rotateY(-22deg) translateX(40px)}to{opacity:1;transform:rotateY(0) translateX(0)}}
+@keyframes kf-fold{from{opacity:0;transform:rotateX(-30deg)}to{opacity:1;transform:rotateX(0)}}
+.frame.in{animation-duration:520ms;animation-fill-mode:forwards;animation-timing-function:cubic-bezier(0.22,1,0.36,1);}
+.frame.in.fade{animation-name:kf-fade}
+.frame.in.up{animation-name:kf-up}
+.frame.in.down{animation-name:kf-down}
+.frame.in.left{animation-name:kf-left}
+.frame.in.right{animation-name:kf-right}
+.frame.in.zoom{animation-name:kf-zoom}
+.frame.in.blur{animation-name:kf-blur}
+.frame.in.flip{animation-name:kf-flip}
+.frame.in.fold{animation-name:kf-fold}
+﻿
+.stage-timeline{position:absolute;left:50%;transform:translateX(-50%);bottom:130px;width:240px;height:2px;background:rgba(22,24,27,0.18);border-radius:2px;z-index:6;overflow:hidden;}
+.stage-timeline i{display:block;height:100%;width:0%;background:linear-gradient(90deg,var(--accent),var(--accent-2));transition:width 0.1s linear;}
+</style>
+</head>
+<body>
+<div class="stage">
+  <aside class="side side-left">
+    <div class="brand"><span class="logo">销</span><div><div class="bname">销卓宝</div><div class="bsub">STITCH-A · KEYFRAMES</div></div></div>
+    <div class="kpi"><span>SCREEN</span><strong id="num">01 / 20</strong></div>
+    <div class="kpi"><span>RUNTIME</span><strong>60s loop</strong></div>
+    <div class="kpi"><span>STEP</span><strong>3s / frame</strong></div>
+    <div class="kpi"><span>MODE</span><strong>auto-play</strong></div>
+  </aside>
+  <div class="phone" id="phone">
+    <div class="dots" id="dots"></div>
+    <div class="caption"><div class="num" id="num2">01</div><div class="ttl" id="ttl">默认空态</div></div>
+    <div class="stage-timeline"><i id="bar"></i></div>
+    <div class="controls">
+      <button id="prev">prev</button>
+      <button id="pause">pause</button>
+      <button id="next">next</button>
+    </div>
+  </div>
+  <aside class="side side-right">
+    <div class="vlabel">v0.3</div>
+    <div class="label">20 SCREENS<br/>3 FLOWS<br/>12 USE CASES</div>
+    <div class="legend">
+      <b>01</b> 默认空态<br/>
+      <b>02</b> 输入交互<br/>
+      <b>03</b> 多模态识别<br/>
+      <b>04</b> 表单填写<br/>
+      <b>05</b> 数据查询<br/>
+      <b>06</b> 知识问答<br/>
+      <b>07</b> 会话抽屉<br/>
+      <b>08</b> 错误状态<br/>
+      <b>09</b> 首次引导<br/>
+      <b>10</b> 拍照识别<br/>
+      <b>11</b> 快捷入口<br/>
+      <b>12</b> 语音输入<br/>
+      <b>13</b> 跟进计划<br/>
+      <b>14</b> AI 主动建议<br/>
+      <b>15</b> 会话详情<br/>
+      <b>16</b> 历史空态<br/>
+      <b>17</b> 多人协作<br/>
+      <b>18</b> 偏好设置<br/>
+      <b>19</b> 客户确认<br/>
+      <b>20</b> 通知中心
+    </div>
+  </aside>
+</div>
+﻿<script>
+const META=[{"id":"01","label":"default","file":"screen-01-default.png"},{"id":"02","label":"input","file":"screen-02-input.png"},{"id":"03","label":"recognize","file":"screen-03-recognize.png"},{"id":"04","label":"form-fill","file":"screen-04-form-fill.png"},{"id":"05","label":"data-query","file":"screen-05-data-query.png"},{"id":"06","label":"kb-qa","file":"screen-06-kb-qa.png"},{"id":"07","label":"session-drawer","file":"screen-07-session-drawer.png"},{"id":"08","label":"error-states","file":"screen-08-error-states.png"},{"id":"09","label":"onboarding","file":"screen-09-onboarding.png"},{"id":"10","label":"camera","file":"screen-10-camera.png"},{"id":"11","label":"entry-panel","file":"screen-11-entry-panel.png"},{"id":"12","label":"voice","file":"screen-12-voice.png"},{"id":"13","label":"follow-up-plan","file":"screen-13-follow-up-plan.png"},{"id":"14","label":"ai-proactive","file":"screen-14-ai-proactive.png"},{"id":"15","label":"session-detail","file":"screen-15-session-detail.png"},{"id":"16","label":"empty-history","file":"screen-16-empty-history.png"},{"id":"17","label":"multi-user","file":"screen-17-multi-user.png"},{"id":"18","label":"settings","file":"screen-18-settings.png"},{"id":"19","label":"customer-confirm","file":"screen-19-customer-confirm.png"},{"id":"20","label":"notification","file":"screen-20-notification.png"}];
+const TITLES=["默认空态","输入交互","多模态识别","表单填写","数据查询","知识问答","会话抽屉","错误状态","首次引导","拍照识别","快捷入口","语音输入","跟进计划","AI 主动建议","会话详情","历史空态","多人协作","偏好设置","客户确认","通知中心"];
+const TRANS=['fade','up','down','left','right','zoom','blur','flip','fold','fade','up','down','left','right','zoom','blur','flip','fold','fade','zoom'];
+const phone=document.getElementById('phone');
+const dots=document.getElementById('dots');
+const numEl=document.getElementById('num');
+const num2=document.getElementById('num2');
+const ttl=document.getElementById('ttl');
+const bar=document.getElementById('bar');
+META.forEach((m,i)=>{
+  const f=document.createElement('div');
+  f.className='frame';f.id='f'+i;
+  f.innerHTML='<img src="../'+m.file+'" alt="'+m.id+' '+m.label+'"/>';
+  phone.insertBefore(f,phone.firstChild);
+  const d=document.createElement('span');
+  if(i===0)d.className='on';
+  dots.appendChild(d);
+});
+let idx=0,playing=true,tick=0;
+const STEP=3000;
+function show(i){
+  idx=(i+META.length)%META.length;
+  META.forEach((_,k)=>{
+    const el=document.getElementById('f'+k);
+    el.classList.remove('active','in',TRANS[k]);
+    if(k===idx){el.classList.add('active','in',TRANS[k]);}
+  });
+  numEl.textContent=String(idx+1).padStart(2,'0')+' / 20';
+  num2.textContent=String(idx+1).padStart(2,'0');
+  ttl.textContent=TITLES[idx];
+  [...dots.children].forEach((d,k)=>d.classList.toggle('on',k===idx));
+  tick=0;
+}
+function loop(){
+  if(!playing)return;
+  tick+=16;
+  bar.style.width=Math.min(100,tick/STEP*100)+'%';
+  if(tick>=STEP){show(idx+1);}
+  requestAnimationFrame(loop);
+}
+document.getElementById('prev').onclick=()=>{show(idx-1);bar.style.width='0%';};
+document.getElementById('next').onclick=()=>{show(idx+1);bar.style.width='0%';};
+document.getElementById('pause').onclick=()=>{playing=!playing;document.getElementById('pause').textContent=playing?'pause':'play';if(playing)loop();};
+show(0);loop();
+</script>
+</body></html>

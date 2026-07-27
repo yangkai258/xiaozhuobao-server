@@ -1,0 +1,705 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AI 对话首页 · 高保真原型 v0.1</title>
+<style>
+:root{
+  --c-paper:#F6F2EC; --c-paper-2:#FFFDF8;
+  --c-ink:#0E1419; --c-mute:#6F7780; --c-steel:#3B434B;
+  --c-line:#DCD2C2; --c-line-soft:#E6DFCF;
+  --c-accent:#E8542C; --c-warn:#B07F1F; --c-ok:#2E7D5B;
+  --c-danger:#A8332B; --c-blue:#2E5A88; --c-gold:#B07F1F; --c-green:#2E7D5B;
+  --ff-cn:"Noto Serif SC","Source Han Serif SC",serif;
+  --ff-display:"Noto Serif SC","Source Han Serif SC",serif;
+  --ff-body:"Noto Sans SC","PingFang SC",sans-serif;
+  --ff-mono:ui-monospace,Menlo,Consolas,monospace;
+  --r-md:10px; --r-card:14px; --r-pill:999px;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;background:#1A1F24;color:#E6E1D6;font-family:var(--ff-body);}
+.page-title{padding:20px 28px 12px;font-family:var(--ff-display);font-weight:700;font-size:18px;letter-spacing:-0.01em;}
+.page-sub{padding:0 28px 16px;color:#A8AEB6;font-size:13px;}
+.scene-nav{padding:0 28px 18px;display:flex;flex-wrap:wrap;gap:8px;}
+.scene-nav a{padding:6px 10px;border-radius:var(--r-pill);background:#252B30;color:#E6E1D6;text-decoration:none;font-size:12px;font-family:var(--ff-mono);letter-spacing:0.04em;}
+.scene-nav a.active{background:var(--c-accent);color:#fff;}
+.deck{display:flex;flex-wrap:wrap;gap:24px;padding:8px 28px 80px;}
+.scene{width:390px;height:844px;border-radius:24px;background:var(--c-paper);color:var(--c-ink);position:relative;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,0.45),0 0 0 1px rgba(255,255,255,0.04);}
+.scene .label{position:absolute;top:-22px;left:0;font-size:11px;color:#8E96A0;font-family:var(--ff-mono);letter-spacing:0.08em;text-transform:uppercase;}
+.scene .wall{display:flex;flex-direction:column;height:100%;}
+.scene .notch{height:36px;display:flex;justify-content:space-between;align-items:center;padding:0 16px;font-family:var(--ff-mono);font-size:11px;color:var(--c-steel);letter-spacing:0.06em;flex-shrink:0;}
+.scene .notch .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--c-accent);margin-right:6px;}
+.scene .titlebar{height:44px;display:flex;align-items:center;justify-content:center;position:relative;background:var(--c-paper);border-bottom:1px solid var(--c-line-soft);padding:0 16px;flex-shrink:0;}
+.scene .titlebar .title{font-family:var(--ff-display);font-size:17px;font-weight:600;letter-spacing:-0.01em;}
+.scene .titlebar .left{position:absolute;left:12px;font-family:var(--ff-mono);font-size:13px;color:var(--c-ink);width:32px;height:32px;display:flex;align-items:center;justify-content:center;}
+.scene .titlebar .right{position:absolute;right:12px;font-family:var(--ff-body);font-size:13px;font-weight:600;color:var(--c-accent);display:flex;gap:6px;align-items:center;}
+.scene .body{flex:1;overflow:hidden;position:relative;}
+.scene .footer{height:78px;background:var(--c-paper);border-top:1px solid var(--c-line-soft);position:relative;flex-shrink:0;}
+.tabs{position:absolute;left:0;right:0;bottom:0;height:64px;display:grid;grid-template-columns:repeat(5,1fr);align-items:stretch;}
+.tabs .tab{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:10px;font-family:var(--ff-mono);color:var(--c-mute);letter-spacing:0.06em;}
+.tabs .tab.active{color:var(--c-ink);}
+.tabs .mid{width:64px;height:64px;margin-top:-26px;border-radius:50%;background:var(--c-accent);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:10px;font-weight:700;align-self:center;box-shadow:0 8px 16px rgba(232,84,44,0.45);}
+.tabs .mid .glyph{font-size:18px;font-weight:700;letter-spacing:-0.04em;}
+.tabs .mid .label{margin-top:1px;font-size:9px;letter-spacing:0.02em;}
+.bubble{max-width:78%;padding:10px 12px;border-radius:14px;font-size:13.5px;line-height:1.55;font-family:var(--ff-body);}
+.bubble.me{align-self:flex-end;background:var(--c-accent);color:#fff;border-bottom-right-radius:4px;}
+.bubble.ai{align-self:flex-start;background:var(--c-paper-2);color:var(--c-ink);border:1px solid var(--c-line-soft);border-bottom-left-radius:4px;}
+.bubble .meta{margin-top:4px;font-size:10px;font-family:var(--ff-mono);color:var(--c-mute);letter-spacing:0.06em;}
+.bubble.me .meta{color:rgba(255,255,255,0.7);}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;}
+.chip{padding:6px 10px;border-radius:var(--r-pill);border:1px solid var(--c-line);font-size:12px;color:var(--c-ink);background:var(--c-paper-2);}
+.card{border-radius:var(--r-card);background:var(--c-paper-2);border:1px solid var(--c-line-soft);padding:12px;display:flex;flex-direction:column;gap:6px;}
+.card .head{display:flex;gap:6px;align-items:center;font-family:var(--ff-mono);font-size:10px;letter-spacing:0.06em;color:var(--c-mute);text-transform:uppercase;}
+.typing{display:inline-flex;gap:3px;padding:6px 10px;border-radius:var(--r-pill);background:var(--c-paper-2);border:1px solid var(--c-line-soft);align-self:flex-start;}
+.typing span{width:5px;height:5px;border-radius:50%;background:var(--c-mute);animation:blink 1s infinite;}
+.typing span:nth-child(2){animation-delay:.15s;}
+.typing span:nth-child(3){animation-delay:.3s;}
+@keyframes blink{0%,100%{opacity:.3}50%{opacity:1}}
+.composer{padding:10px 12px 8px;display:flex;gap:8px;align-items:center;background:var(--c-paper);}
+.composer .input{flex:1;min-height:36px;border-radius:var(--r-pill);background:var(--c-paper-2);border:1px solid var(--c-line);padding:8px 14px;font-size:13px;color:var(--c-ink);display:flex;align-items:center;gap:8px;color:var(--c-mute);}
+.composer .send{width:40px;height:40px;border-radius:50%;background:var(--c-accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;}
+.kbd{padding:2px 6px;border-radius:6px;background:var(--c-paper-2);border:1px solid var(--c-line);font-family:var(--ff-mono);font-size:11px;color:var(--c-mute);}
+.status{padding:6px 10px;border-radius:var(--r-pill);background:#FFF7E6;border:1px solid var(--c-warn);color:var(--c-warn);font-size:11px;font-family:var(--ff-mono);letter-spacing:0.04em;}
+.kpi{display:flex;gap:8px;}
+.kpi > div{flex:1;border:1px solid var(--c-line-soft);background:var(--c-paper-2);border-radius:var(--r-md);padding:10px 8px;display:flex;flex-direction:column;gap:2px;}
+.kpi .label{font-size:10px;color:var(--c-mute);font-family:var(--ff-mono);letter-spacing:0.08em;text-transform:uppercase;}
+.kpi .val{font-family:var(--ff-display);font-weight:700;font-size:18px;}
+.kpi .delta{font-size:10px;color:var(--c-mute);font-family:var(--ff-mono);}
+.divider{font-family:var(--ff-mono);font-size:10px;color:var(--c-mute);letter-spacing:0.08em;text-transform:uppercase;text-align:center;margin:8px 0;}
+.dotline{border-top:1px dashed var(--c-line-soft);}
+.note{font-size:11px;color:var(--c-mute);font-family:var(--ff-body);line-height:1.4;}
+.toast{position:absolute;left:16px;right:16px;top:90px;background:#0E1419;color:#fff;padding:10px 12px;border-radius:10px;font-size:12.5px;font-family:var(--ff-body);display:flex;gap:10px;align-items:flex-start;}
+.toast .ico{color:var(--c-accent);font-weight:700;}
+.tooltip-bubble{position:absolute;left:16px;right:16px;bottom:96px;background:var(--c-ink);color:#fff;padding:8px 12px;border-radius:8px;font-size:12px;font-family:var(--ff-body);}
+.drawer{position:absolute;inset:0;background:rgba(0,0,0,0.4);display:flex;align-items:stretch;}
+.drawer .panel{width:84%;background:var(--c-paper);padding:18px 16px;display:flex;flex-direction:column;gap:14px;}
+.drawer .panel h4{font-family:var(--ff-display);font-size:15px;margin:0;}
+.drawer .panel .pill{font-family:var(--ff-mono);font-size:10px;color:var(--c-mute);letter-spacing:0.06em;text-transform:uppercase;}
+</style>
+</head>
+<body><div class="page-title">AI 对话首页 · 高保真原型 v0.1</div>
+<div class="page-sub">开屏即对话 · 多模态识别生成草稿 · 数据查询 · 知识库问答 · 文档上传</div>
+<nav class="scene-nav" id="nav"></nav>
+<section class="deck" id="deck"></section>
+<script>
+const scenes=[
+ {id:"00",name:"封面 · 思路"},
+ {id:"10",name:"聊天首页（开屏）"},
+ {id:"11",name:"聚焦 · 输入面板"},
+ {id:"12",name:"多模态识别 · 客户资质"},
+ {id:"13",name:"AI 生成客商草稿"},
+ {id:"14",name:"客商编辑态（确认/补全）"},
+ {id:"20",name:"会话抽屉"},
+ {id:"30",name:"数据查询 · 业绩摘要"},
+ {id:"40",name:"知识库问答"},
+ {id:"50",name:"原 AI 模块入口变体"},
+ {id:"60",name:"Tab 总览（midButton）"}
+];
+const nav=document.getElementById("nav");const deck=document.getElementById("deck");
+scenes.forEach((s,i)=>{const a=document.createElement("a");a.href="#s"+s.id;a.textContent=s.id+" "+s.name;a.dataset.scene=s.id;nav.appendChild(a);});
+const u=new URL(location.href);const cur=u.searchParams.get("scene")||"10";
+[...nav.querySelectorAll("a")].forEach(a=>a.classList.toggle("active",a.dataset.scene===cur));
+</script>
+</body>
+</html>
+<section class="scene" id="s00" data-scene="00" data-name="封面 · 思路">
+  <div class="wall">
+    <div class="notch"><span>09:41</span><span><span class="dot"/>ONLINE</span><span>v3.1</span></div>
+    <div class="titlebar"><div class="left">⌂</div><span class="title">思路</span><div class="right">导出</div></div>
+    <div class="body" style="padding:24px 22px;display:flex;flex-direction:column;gap:18px;overflow:auto;">
+      <div>
+        <div style="font-family:var(--ff-mono);font-size:10px;letter-spacing:0.1em;color:var(--c-mute);">CHAPTER · 00</div>
+        <h1 style="font-family:var(--ff-display);font-size:28px;font-weight:700;line-height:1.2;margin:6px 0 0;letter-spacing:-0.02em;">把对话放回销售日常</h1>
+        <p style="font-size:13.5px;color:var(--c-mute);line-height:1.6;margin:14px 0 0;">
+          销售一天的事不再被 8 个表单瓜分，而是从一句开场白开始：拍照建档、问业绩、查库存、补资质、补提交。AI 成为外壳，业务接口是内核。
+        </p>
+      </div>
+      <div class="card" style="border-top:3px solid var(--c-accent);">
+        <div class="head">核心动作</div>
+        <div style="font-size:14px;line-height:1.55;">· 拍照客户营业执照 → 自动建客商草稿 → 进入编辑态补字段 → 提交审批</div>
+        <div style="font-size:14px;line-height:1.55;">· 口述"上海建工近 30 天业绩" → 调接口取数据 → AI 摘要 + 列表下钻</div>
+        <div style="font-size:14px;line-height:1.55;">· 粘贴技术参数 / 上传 PDF → 知识库检索 → 出处段落 + 跳转业务单</div>
+        <div style="font-size:14px;line-height:1.55;">· 提问跟进 / 售后 / 订单状态 → 调业务接口 → 1 张卡片代替 3 次跳转</div>
+      </div>
+      <div class="card">
+        <div class="head">位置</div>
+        <div style="font-size:13px;color:var(--c-steel);line-height:1.55;">
+          中间 tab（midButton）天然适合"对话"作为统一入口；其它 4 tab（工作台 / 资讯 / 订单 / 我的）保留。
+        </div>
+      </div>
+      <div class="card">
+        <div class="head">协议骨架</div>
+        <div style="font-family:var(--ff-mono);font-size:11.5px;color:var(--c-steel);line-height:1.6;">
+          POST /ai/conversations → 返 id<br/>
+          POST /ai/conversations/:id/messages {text, attachments[]}<br/>
+          → {message, tool_calls[]}<br/>
+          tool_call: {id,type,args,preview_component}
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+<section class="scene" id="s10" data-scene="10" data-name="聊天首页（开屏）">
+  <div class="wall">
+    <div class="notch"><span>09:41</span><span><span class="dot"/>ONLINE</span><span>v3.1</span></div>
+    <div class="titlebar"><div class="left">≡</div><span class="title">对话</span><div class="right" style="display:flex;gap:6px;align-items:center;"><span style="width:8px;height:8px;border-radius:50%;background:var(--c-ok);"></span><span style="font-size:11px;color:var(--c-mute);font-family:var(--ff-mono);">深度求索·R1</span></div></div>
+    <div class="body" style="padding:14px;display:flex;flex-direction:column;gap:8px;overflow:auto;">
+      <div class="bubble ai">
+        你好，张明。今天有 3 项待办：补建深圳南方装饰资质、确认 7-19 SO 的发货地址、再过 1 笔 OA 审批。<br/>
+        准备从哪里开始？
+        <div class="meta">09:41 · AI 助手 · 由对话自动生成</div>
+      </div>
+      <div class="bubble me">先把上海建工这家客户的本月业绩给我。 </div>
+      <div class="bubble ai">好，已调用 <span class="kbd">GET /orders?customer=...</span>。本月上海建工累计 <b style="color:var(--c-accent);">¥ 482,610</b>，12 单，其中待确认 4 单、退货 1 单。<br/>
+        <button class="chip" style="margin-top:6px;border-color:var(--c-accent);color:var(--c-accent);">查看 12 单明细 ›</button>
+        <button class="chip" style="margin-top:6px;">生成报表 PDF</button>
+        <div class="meta">09:41 · 数据来源：/orders、/aftersales</div>
+      </div>
+      <div class="bubble ai" style="background:#FFF7E6;border-color:var(--c-warn);">
+        <span class="status">需补字段</span>
+        <div style="margin-top:6px;">深圳南方装饰缺少营业执照照片，对应 7-19 SO 待发。建议：</div>
+        <div style="margin-top:6px;font-size:13px;color:var(--c-steel);">· 现在拍照或从相册上传（直接生成客商草稿）</div>
+        <button class="chip" style="margin-top:6px;border-color:var(--c-accent);color:var(--c-accent);">立即拍照补齐 ›</button>
+        <div class="meta">09:42 · 触发规则：附件缺失</div>
+      </div>
+      <div style="flex:1"></div>
+      <div class="chips">
+        <button class="chip">查业绩</button>
+        <button class="chip">建客商</button>
+        <button class="chip">问流程</button>
+        <button class="chip">搜文档</button>
+        <button class="chip">看待办</button>
+      </div>
+    </div>
+    <div class="composer"><button class="send" style="background:transparent;color:var(--c-mute);width:36px;height:36px;">＋</button><div class="input">告诉 AI 你想做点什么…</div><button class="send">送</button></div>
+    <div class="footer">
+      <div class="tabs">
+        <div class="tab"><div>⌂</div><div>工作台</div></div>
+        <div class="tab"><div>☷</div><div>资讯</div></div>
+        <div class="mid"><div class="glyph">对</div><div class="label">对话</div></div>
+        <div class="tab"><div>≡</div><div>订单</div></div>
+        <div class="tab"><div>◉</div><div>我的</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+<section class="scene" id="s11" data-scene="11" data-name="聚焦 · 输入面板">
+  <div class="wall">
+    <div class="notch"><span>09:41</span><span><span class="dot"/>ONLINE</span><span>v3.1</span></div>
+    <div class="titlebar"><span class="title">对话</span></div>
+    <div class="body" style="padding:14px;display:flex;flex-direction:column;gap:8px;overflow:auto;">
+      <div class="bubble me">帮我建一个客户：</div>
+      <div class="bubble ai">好的，请提供客户名称、联系人或营业执照照其中一项即可。</div>
+      <div class="typing"><span></span><span></span><span></span></div>
+      <div style="flex:1"></div>
+    </div>
+    <div style="background:var(--c-paper-2);border-top:1px solid var(--c-line);padding:10px 12px 16px;display:flex;flex-direction:column;gap:10px;">
+      <div class="composer"><button class="send" style="background:transparent;color:var(--c-mute);width:36px;height:36px;">＋</button><div class="input" style="border-color:var(--c-accent);"><b style="color:var(--c-ink);">|</b></div><button class="send">送</button></div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;">
+        <button class="card" style="align-items:center;gap:4px;padding:10px 6px;"><div style="font-size:18px;">📷</div><div style="font-size:11px;">拍照识别</div></button>
+        <button class="card" style="align-items:center;gap:4px;padding:10px 6px;"><div style="font-size:18px;">▣</div><div style="font-size:11px;">上传文档</div></button>
+        <button class="card" style="align-items:center;gap:4px;padding:10px 6px;"><div style="font-size:18px;">⌖</div><div style="font-size:11px;">选模板</div></button>
+        <button class="card" style="align-items:center;gap:4px;padding:10px 6px;"><div style="font-size:18px;">＋</div><div style="font-size:11px;">添加附件</div></button>
+      </div>
+      <div style="font-family:var(--ff-mono);font-size:10px;color:var(--c-mute);letter-spacing:0.06em;text-transform:uppercase;">快捷指令</div>
+      <div class="chips">
+        <button class="chip">查业绩 · 上海建工</button>
+        <button class="chip">建客商 · 模板</button>
+        <button class="chip">补资质 · SO2026...</button>
+        <button class="chip">查 OA 审批</button>
+        <button class="chip">搜技术参数</button>
+      </div>
+    </div>
+    <div class="footer"><div class="tabs">
+      <div class="tab"><div>⌂</div><div>工作台</div></div>
+      <div class="tab"><div>☷</div><div>资讯</div></div>
+      <div class="mid active"><div class="glyph">对</div><div class="label">对话</div></div>
+      <div class="tab"><div>≡</div><div>订单</div></div>
+      <div class="tab"><div>◉</div><div>我的</div></div>
+    </div></div>
+  </div>
+</section>
+<section class="scene" id="s12" data-scene="12" data-name="多模态识别 · 客户资质">
+  <div class="wall">
+    <div class="notch"><span>09:41</span><span><span class="dot"/>ONLINE</span><span>v3.1</span></div>
+    <div class="titlebar"><div class="left">‹</div><span class="title">对话</span></div>
+    <div class="body" style="padding:14px;display:flex;flex-direction:column;gap:8px;overflow:auto;">
+      <div class="bubble me" style="background:var(--c-paper-2);color:var(--c-ink);align-self:flex-end;">
+        <div style="background:#D9D9D9;border-radius:8px;height:140px;display:flex;align-items:center;justify-content:center;color:#666;font-family:var(--ff-mono);font-size:11px;">营业执照 · IMG_0741.jpg</div>
+        <div style="margin-top:6px;font-size:13px;">帮这家建个客商，深圳的，专做外墙装饰。</div>
+      </div>
+      <div class="bubble ai">已识别到一张"深圳市南山区荔秀装饰工程有限公司"营业执照，正在解析字段 <span class="kbd">4/7</span>…<br/><div style="margin-top:6px;font-family:var(--ff-mono);font-size:11px;color:var(--c-mute);">OCR → 工商接口 → 风控校验</div></div>
+      <div class="bubble ai">
+        <div style="font-size:13px;font-weight:600;color:var(--c-ink);margin-bottom:4px;">识别结果</div>
+        <div class="dotline" style="padding:6px 0;display:flex;justify-content:space-between;font-size:12px;"><span style="color:var(--c-mute);">客户名称</span><span>深圳市南山区荔秀装饰工程有限公司</span></div>
+        <div class="dotline" style="padding:6px 0;display:flex;justify-content:space-between;font-size:12px;"><span style="color:var(--c-mute);">统一信用代码</span><span>91440300MA5GK87Y2X</span></div>
+        <div class="dotline" style="padding:6px 0;display:flex;justify-content:space-between;font-size:12px;"><span style="color:var(--c-mute);">注册资本</span><span>¥ 5,000,000</span></div>
+        <div class="dotline" style="padding:6px 0;display:flex;justify-content:space-between;font-size:12px;"><span style="color:var(--c-mute);">经营范围</span><span style="max-width:60%;text-align:right;">建筑装饰工程设计与施工…</span></div>
+        <div class="dotline" style="padding:6px 0;display:flex;justify-content:space-between;font-size:12px;"><span style="color:var(--c-mute);">法人代表</span><span style="color:var(--c-warn);">⚠ 待补文字录入</span></div>
+        <div class="dotline" style="padding:6px 0;display:flex;justify-content:space-between;font-size:12px;"><span style="color:var(--c-mute);">联系人 / 电话</span><span style="color:var(--c-warn);">⚠ 待口头补充</span></div>
+        <div class="dotline" style="padding:6px 0;display:flex;justify-content:space-between;font-size:12px;"><span style="color:var(--c-mute);">开户许可证</span><span style="color:var(--c-warn);">⚠ 建议再拍一张</span></div>
+      </div>
+      <button class="chip" style="align-self:flex-start;border-color:var(--c-accent);color:var(--c-accent);">进入客商编辑态 ›</button>
+      <div style="flex:1"></div>
+    </div>
+    <div class="composer"><button class="send" style="background:transparent;color:var(--c-mute);width:36px;height:36px;">＋</button><div class="input">这里继续补充字段或拍照…</div><button class="send">送</button></div>
+    <div class="footer"><div class="tabs">
+      <div class="tab"><div>⌂</div><div>工作台</div></div>
+      <div class="tab"><div>☷</div><div>资讯</div></div>
+      <div class="mid active"><div class="glyph">对</div><div class="label">对话</div></div>
+      <div class="tab"><div>≡</div><div>订单</div></div>
+      <div class="tab"><div>◉</div><div>我的</div></div>
+    </div></div>
+  </div>
+</section>
+
+<section class="scene" id="s13" data-scene="13" data-name="AI 生成客商草稿">
+  <div class="wall">
+    <div class="notch"><span>09:41</span><span><span class="dot"/>ONLINE</span><span>v3.1</span></div>
+    <div class="titlebar"><span class="title">对话</span></div>
+    <div class="body" style="padding:14px;display:flex;flex-direction:column;gap:10px;overflow:auto;">
+      <div class="bubble me">查看这家客户主营业务和外景图。</div>
+      <div class="bubble ai">已通过 <span class="kbd">公开工商 + 地图 POI</span> 拉取：<br/><div style="margin-top:6px;font-size:13px;">主营：外墙保温、幕墙工程；2023 年深圳南山区工地 12 个。</div>
+        <div style="margin-top:8px;display:grid;grid-template-columns:repeat(3,1fr);gap:6px;"><div style="background:#D9D9D9;height:60px;border-radius:6px;"></div><div style="background:#D9D9D9;height:60px;border-radius:6px;"></div><div style="background:#D9D9D9;height:60px;border-radius:6px;"></div></div>
+      </div>
+      <div class="bubble ai">已为你生成"客商草稿单"卡片，请进入编辑态确认：</div>
+      <div class="card" style="border-top:3px solid var(--c-accent);">
+        <div class="head">草稿 · DRAFT-CUST-20260725-003</div>
+        <div style="font-family:var(--ff-display);font-weight:700;font-size:15.5px;">深圳市南山区荔秀装饰工程有限公司</div>
+        <div style="font-size:12.5px;color:var(--c-mute);">外墙装饰工程 · 一般纳税人 · 信用 B+</div>
+        <div class="dotline"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;">
+          <div><span style="color:var(--c-mute);">联系人 · 待补</span><span style="color:var(--c-warn);float:right;">⚠</span></div>
+          <div><span style="color:var(--c-mute);">电话 · 待补</span><span style="color:var(--c-warn);float:right;">⚠</span></div>
+          <div><span style="color:var(--c-mute);">开票资料</span><span style="color:var(--c-warn);float:right;">⚠ 再拍一张</span></div>
+          <div><span style="color:var(--c-mute);">地址</span><span style="float:right;">深圳南山区</span></div>
+        </div>
+        <button class="chip" style="margin-top:8px;align-self:stretch;border-color:var(--c-accent);color:var(--c-accent);text-align:center;">进入编辑态补全字段 ›</button>
+      </div>
+      <div style="flex:1"></div>
+    </div>
+    <div class="composer"><button class="send" style="background:transparent;color:var(--c-mute);width:36px;height:36px;">＋</button><div class="input">继续说…</div><button class="send">送</button></div>
+    <div class="footer"><div class="tabs">
+      <div class="tab"><div>⌂</div><div>工作台</div></div>
+      <div class="tab"><div>☷</div><div>资讯</div></div>
+      <div class="mid active"><div class="glyph">对</div><div class="label">对话</div></div>
+      <div class="tab"><div>≡</div><div>订单</div></div>
+      <div class="tab"><div>◉</div><div>我的</div></div>
+    </div></div>
+  </div>
+</section>
+<section class="scene" id="s14" data-scene="14" data-name="客商编辑态（确认/补全）">
+  <div class="wall">
+    <div class="notch"><span>09:41</span><span><span class="dot"/>ONLINE</span><span>v3.1</span></div>
+    <div class="titlebar"><div class="left">‹</div><span class="title">新建客商</span><div class="right">保存</div></div>
+    <div class="body" style="padding:14px;display:flex;flex-direction:column;gap:10px;overflow:auto;">
+      <div class="card" style="border-top:3px solid var(--c-ok);">
+        <div class="head">AI 已预填</div>
+        <div style="font-size:13px;color:var(--c-steel);">来源于对话 09:41 拍照识别 + 公开工商数据。请补全以下字段后再提交。</div>
+      </div>
+      <div class="card">
+        <div class="head">基础 · 已识别</div>
+        <div style="font-size:13.5px;font-weight:600;">深圳市南山区荔秀装饰工程有限公司</div>
+        <div style="font-size:12.5px;color:var(--c-mute);">91440300MA5GK87Y2X · 法人 陈兵 · 注册资本 ¥500 万</div>
+        <div style="font-size:12.5px;color:var(--c-mute);">主营：建筑装饰工程 / 外墙保温</div>
+      </div>
+      <div class="card">
+        <div class="head" style="color:var(--c-warn);">需补字段 · 3 项</div>
+        <div style="display:grid;grid-template-columns:1fr;gap:8px;">
+          <div><div style="font-size:11px;color:var(--c-mute);font-family:var(--ff-mono);">联系人</div><div style="border-bottom:1px solid var(--c-line);padding:6px 0;font-size:13px;color:var(--c-mute);">点此拍照名片 / 手动输入</div></div>
+          <div><div style="font-size:11px;color:var(--c-mute);font-family:var(--ff-mono);">联系电话</div><div style="border-bottom:1px solid var(--c-line);padding:6px 0;font-size:13px;color:var(--c-mute);">138****2391（自动读取）</div></div>
+          <div><div style="font-size:11px;color:var(--c-mute);font-family:var(--ff-mono);">开户许可证</div><div class="chip" style="border-color:var(--c-warn);color:var(--c-warn);">再拍一张</div></div>
+        </div>
+      </div>
+      <button class="chip" style="align-self:stretch;border-color:var(--c-accent);color:var(--c-accent);text-align:center;padding:12px;">提交审批</button>
+      <div class="note">提交后将自动通知区域经理审批 · 同时把客户纳入项目 / 订单 / 跟进流。</div>
+    </div>
+    <div class="footer"><div class="tabs">
+      <div class="tab"><div>⌂</div><div>工作台</div></div>
+      <div class="tab"><div>☷</div><div>资讯</div></div>
+      <div class="mid active"><div class="glyph">对</div><div class="label">对话</div></div>
+      <div class="tab"><div>≡</div><div>订单</div></div>
+      <div class="tab"><div>◉</div><div>我的</div></div>
+    </div></div>
+  </div>
+</section>
+<section class="scene" id="s20" data-scene="20" data-name="会话抽屉">
+  <div class="wall">
+    <div class="notch"><span>09:41</span><span><span class="dot"/>ONLINE</span><span>v3.1</span></div>
+    <div class="titlebar"><span class="title">对话</span></div>
+    <div class="body" style="padding:0;">
+      <div class="drawer">
+        <div class="panel">
+          <div style="display:flex;justify-content:space-between;align-items:center;"><h4>会话</h4><a style="font-size:13px;color:var(--c-accent);text-decoration:none;">＋ 新会话</a></div>
+          <div class="pill">今天 · 3</div>
+          <div class="card"><div style="font-size:13px;font-weight:600;">建深圳南方装饰</div><div style="font-size:11px;color:var(--c-mute);">09:41 · AI 已生成草稿</div></div>
+          <div class="card"><div style="font-size:13px;font-weight:600;">查上海建工业绩</div><div style="font-size:11px;color:var(--c-mute);">09:30 · 12 单摘要</div></div>
+          <div class="card"><div style="font-size:13px;font-weight:600;">补 SO20260716 资质</div><div style="font-size:11px;color:var(--c-mute);">09:21 · 待 OA 审批</div></div>
+          <div class="pill">昨天 · 4</div>
+          <div class="card"><div style="font-size:13px;font-weight:600;">苏州 K11 工地</div><div style="font-size:11px;color:var(--c-mute);">昨 17:08 · 已审批通过</div></div>
+          <div class="card"><div style="font-size:13px;font-weight:600;">报价 RFP-014</div><div style="font-size:11px;color:var(--c-mute);">昨 14:22 · 写给客户邮件</div></div>
+          <div class="pill">固定 · 收藏</div>
+          <div class="card" style="border-color:var(--c-accent);"><div style="font-size:13px;font-weight:600;">★ 技术参数手册（K11 项目）</div><div style="font-size:11px;color:var(--c-mute);">知识库 · 12 篇常引</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="scene" id="s30" data-scene="30" data-name="数据查询 · 业绩摘要">
+  <div class="wall">
+    <div class="notch"><span>09:41</span><span><span class="dot"/>ONLINE</span><span>v3.1</span></div>
+    <div class="titlebar"><div class="left">‹</div><span class="title">对话</span></div>
+    <div class="body" style="padding:14px;display:flex;flex-direction:column;gap:10px;overflow:auto;">
+      <div class="bubble me">上海建工 7 月业绩?</div>
+      <div class="bubble ai">
+        <div style="font-size:13px;">已查询 <span class="kbd">/orders</span> + <span class="kbd">/aftersales</span>，按 7 月 1 日 — 7 月 25 日聚合：</div>
+        <div class="kpi" style="margin-top:8px;">
+          <div><div class="label">GMV</div><div class="val">¥ 482,610</div><div class="delta">vs 6 月 +12.4%</div></div>
+          <div><div class="label">订单数</div><div class="val">12</div><div class="delta">退单 1</div></div>
+          <div><div class="label">在途</div><div class="val">¥ 86,400</div><div class="delta">3 单待发</div></div>
+        </div>
+        <div style="margin-top:8px;font-size:12.5px;color:var(--c-mute);">近 7 日趋势：广州雄驰雄驰风格首次低于深圳南粤。</div>
+        <button class="chip" style="margin-top:6px;border-color:var(--c-accent);color:var(--c-accent);">展开 12 单明细 ›</button>
+      </div>
+      <div class="card">
+        <div class="head">3 单可继续推</div>
+        <div class="dotline" style="padding:6px 0;display:flex;justify-content:space-between;font-size:13px;"><span>SO20260719-007 · 上海建工</span><span style="color:var(--c-warn);">待 OA 审批</span></div>
+        <div class="dotline" style="padding:6px 0;display:flex;justify-content:space-between;font-size:13px;"><span>SO20260716-023 · 上海建工</span><span style="color:var(--c-accent);">待回款</span></div>
+        <div class="dotline" style="padding:6px 0;display:flex;justify-content:space-between;font-size:13px;"><span>SO20260712-008 · 上海建工</span><span>已发货</span></div>
+      </div>
+      <div class="bubble ai">要不要我帮你起草一封"提醒回款"邮件草稿？</div>
+      <div style="flex:1"></div>
+    </div>
+    <div class="composer"><button class="send" style="background:transparent;color:var(--c-mute);width:36px;height:36px;">＋</button><div class="input">回复或上传资料…</div><button class="send">送</button></div>
+    <div class="footer"><div class="tabs">
+      <div class="tab"><div>⌂</div><div>工作台</div></div>
+      <div class="tab"><div>☷</div><div>资讯</div></div>
+      <div class="mid active"><div class="glyph">对</div><div class="label">对话</div></div>
+      <div class="tab"><div>≡</div><div>订单</div></div>
+      <div class="tab"><div>◉</div><div>我的</div></div>
+    </div></div>
+  </div>
+</section>
+
+<section class="scene" id="s40" data-scene="40" data-name="知识库问答">
+  <div class="wall">
+    <div class="notch"><span>09:41</span><span><span class="dot"/>ONLINE</span><span>v3.1</span></div>
+    <div class="titlebar"><span class="title">对话</span></div>
+    <div class="body" style="padding:14px;display:flex;flex-direction:column;gap:8px;overflow:auto;">
+      <div class="bubble me">JS 聚合物乳液在 5℃ 以下还能不能施工？</div>
+      <div class="bubble ai">短答：<b style="color:var(--c-accent);">不建议</b>。基料在 5℃ 以下成膜不完整，影响耐久性。<br/><span style="font-size:12px;color:var(--c-mute);">施工窗口：5 ~ 35℃ / 湿度 ≤ 80%。</span></div>
+      <div class="bubble ai">
+        <div style="font-size:12px;color:var(--c-mute);">相关引用 · 出自知识库</div>
+        <div class="card" style="margin-top:6px;border-left:3px solid var(--c-accent);">
+          <div class="head">《涂无忧 · JS 聚合物乳液操作手册 v3》· §2.3</div>
+          <div style="font-size:12.5px;line-height:1.5;">"施工温度应保持在 5℃ 以上，低于 5℃ 时乳液的成膜效率下降 <b>30%</b>，建议改用低温型配方 LK-7。"</div>
+        </div>
+        <div class="card"><div class="head">历史相似案例</div><div style="font-size:12px;">SO20260112-005 · 上海 · 工程暂停 · 复检 3 天</div></div>
+      </div>
+      <div class="bubble me">那就用 LK-7，帮我补一份合同补充协议。</div>
+      <div class="bubble ai">了解。我将基于《补充协议模板》为深圳南方装饰生成一版摘要：<br/>
+        · 替换型号 JS→LK-7，单价 ¥268/桶（参考最近报价）<br/>
+        · 工期顺延 7 天<br/>
+        · 附件：技术参数差异表
+        <button class="chip" style="margin-top:6px;border-color:var(--c-accent);color:var(--c-accent);">打开补充协议草稿 ›</button>
+      </div>
+      <div style="flex:1"></div>
+    </div>
+    <div class="composer"><button class="send" style="background:transparent;color:var(--c-mute);width:36px;height:36px;">＋</button><div class="input">追问或上传…</div><button class="send">送</button></div>
+    <div class="footer"><div class="tabs">
+      <div class="tab"><div>⌂</div><div>工作台</div></div>
+      <div class="tab"><div>☷</div><div>资讯</div></div>
+      <div class="mid active"><div class="glyph">对</div><div class="label">对话</div></div>
+      <div class="tab"><div>≡</div><div>订单</div></div>
+      <div class="tab"><div>◉</div><div>我的</div></div>
+    </div></div>
+  </div>
+</section>
+<section class="scene" id="s50" data-scene="50" data-name="原 AI 模块入口变体">
+  <div class="wall">
+    <div class="notch"><span>09:41</span><span><span class="dot"/>ONLINE</span><span>v3.1</span></div>
+    <div class="titlebar"><span class="title">对话</span></div>
+    <div class="body" style="padding:14px;display:flex;flex-direction:column;gap:12px;overflow:auto;">
+      <div style="font-family:var(--ff-mono);font-size:10px;letter-spacing:0.08em;color:var(--c-mute);">AI 功能 · 仍可通过命令调起</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
+        <div class="card" style="align-items:flex-start;"><div style="font-size:11px;color:var(--c-mute);font-family:var(--ff-mono);">01</div><div style="font-weight:600;">成交洞察</div><div class="note">客户 / 商品 / 时间聚合摘要</div></div>
+        <div class="card" style="align-items:flex-start;"><div style="font-size:11px;color:var(--c-mute);font-family:var(--ff-mono);">02</div><div style="font-weight:600;">报价助手</div><div class="note">RFP · SAP · 历史价</div></div>
+        <div class="card" style="align-items:flex-start;"><div style="font-size:11px;color:var(--c-mute);font-family:var(--ff-mono);">03</div><div style="font-weight:600;">风险预警</div><div class="note">库存 / 信用 / OA</div></div>
+        <div class="card" style="align-items:flex-start;"><div style="font-size:11px;color:var(--c-mute);font-family:var(--ff-mono);">04</div><div style="font-weight:600;">售后诊断</div><div class="note">AF 单推断 · 责任判定</div></div>
+        <div class="card" style="align-items:flex-start;"><div style="font-size:11px;color:var(--c-mute);font-family:var(--ff-mono);">05</div><div style="font-weight:600;">客户跟进</div><div class="note">节奏提醒 / 话术</div></div>
+        <div class="card" style="align-items:flex-start;border-color:var(--c-accent);background:#FFF5F1;"><div style="font-size:11px;color:var(--c-mute);font-family:var(--ff-mono);">06</div><div style="font-weight:600;">知识库</div><div class="note">12 篇常引 · 命中率 64%</div></div>
+      </div>
+      <div class="card">
+        <div class="head">对话代替模块入口</div>
+        <div class="note" style="margin-top:6px;">· 六个模块不再各自有独立 UI 入口。任意一句"给我做一份客户近 30 天报价"会路由到"报价助手"。</div>
+        <div class="note">· 命中后 AI 在当前对话里返回结果，避免来回切换。</div>
+      </div>
+      <div style="flex:1"></div>
+    </div>
+    <div class="composer"><button class="send" style="background:transparent;color:var(--c-mute);width:36px;height:36px;">＋</button><div class="input">直接对话触发任意模块…</div><button class="send">送</button></div>
+    <div class="footer"><div class="tabs">
+      <div class="tab"><div>⌂</div><div>工作台</div></div>
+      <div class="tab"><div>☷</div><div>资讯</div></div>
+      <div class="mid active"><div class="glyph">对</div><div class="label">对话</div></div>
+      <div class="tab"><div>≡</div><div>订单</div></div>
+      <div class="tab"><div>◉</div><div>我的</div></div>
+    </div></div>
+  </div>
+</section>
+
+<section class="scene" id="s60" data-scene="60" data-name="Tab 总览（midButton）">
+  <div class="wall">
+    <div class="notch"><span>09:41</span><span><span class="dot"/>ONLINE</span><span>v3.1</span></div>
+    <div class="titlebar"><span class="title">Tab 总览</span></div>
+    <div class="body" style="padding:14px;display:flex;flex-direction:column;gap:12px;overflow:auto;">
+      <div class="card"><div class="head">五个 tab</div>
+        <div class="note">· 工作台 · 资讯 · 【对话】凸起 · 订单 · 我的</div>
+        <div class="note">· 中间 tab（midButton）位置不变，文案保留"对话"，icon 用 "对" 字。</div>
+      </div>
+      <div class="card"><div class="head">对话 → 业务</div>
+        <div class="note">· 一句"拍照建客户"→自动跳新建客商页（场景 14）</div>
+        <div class="note">· 一句"业绩"→数据查询（场景 30）→继续点明细跳订单页</div>
+        <div class="note">· 一句"JS 聚合物能不能 5℃ 干"→知识库（场景 40）→跳转补充协议草稿</div>
+      </div>
+      <div style="font-family:var(--ff-mono);font-size:11px;color:var(--c-mute);">每个非对话 tab 继续展示原有功能；只是"对话"成为统一搜索入口。</div>
+      <div class="kpi">
+        <div><div class="label">会话</div><div class="val">28</div><div class="delta">今天</div></div>
+        <div><div class="label">工具调用</div><div class="val">7</div><div class="delta">本会话</div></div>
+        <div><div class="label">提交</div><div class="val">2</div><div class="delta">OA 已发起</div></div>
+      </div>
+      <div class="card" style="border-top:3px solid var(--c-accent);"><div class="head">落实点</div>
+        <div class="note">· 工作台首页新增"打开对话"卡片，跳 /pages/ai/index</div>
+        <div class="note">· 全局浮窗 FabAI 改为"按压弹起 6 个固定场景卡"，点中进入 /pages/ai/index?intent=...</div>
+        <div class="note">· 工作台 8 个 biz 入口保留，但每个标题附加"按住对话触发"提示</div>
+      </div>
+      <div style="flex:1"></div>
+    </div>
+    <div class="footer"><div class="tabs">
+      <div class="tab"><div>⌂</div><div>工作台</div></div>
+      <div class="tab"><div>☷</div><div>资讯</div></div>
+      <div class="mid active"><div class="glyph">对</div><div class="label">对话</div></div>
+      <div class="tab"><div>≡</div><div>订单</div></div>
+      <div class="tab"><div>◉</div><div>我的</div></div>
+    </div></div>
+  </div>
+</section>
+<style id="grid-style">
+.deck{display:flex;flex-wrap:nowrap;gap:42px;padding:120px 60px 80px;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;background:linear-gradient(180deg,#1A1F24 0%,#13171B 100%);min-height:100vh;}
+.deck::-webkit-scrollbar{height:12px;}
+.deck::-webkit-scrollbar-track{background:#0E1419;}
+.deck::-webkit-scrollbar-thumb{background:#3B434B;border-radius:6px;}
+.deck::-webkit-scrollbar-thumb:hover{background:var(--c-accent);}
+.scene{flex:0 0 auto;scroll-snap-align:center;}
+.scene::before{content:attr(data-title);position:absolute;top:-46px;left:0;right:0;font-family:var(--ff-mono);font-size:11px;font-weight:600;color:var(--c-accent);letter-spacing:0.16em;text-transform:uppercase;text-align:center;padding-bottom:6px;border-bottom:1px dashed rgba(255,255,255,0.18);}
+.scene::after{content:"SCENE " attr(data-scene) " · " attr(data-name);display:block;position:absolute;left:0;right:0;bottom:-32px;text-align:center;font-family:var(--ff-mono);font-size:11px;color:#A8AEB6;letter-spacing:0.08em;}
+.page-title,.page-sub{position:fixed;top:0;left:0;right:0;z-index:5;background:rgba(26,31,36,0.92);backdrop-filter:blur(8px);padding:14px 28px 10px;border-bottom:1px solid rgba(255,255,255,0.06);}
+.page-title{margin:0;padding-top:16px;font-size:16px;}
+.page-sub{padding:6px 28px 10px;margin:0;font-size:12px;}
+.scene-nav{position:fixed;top:74px;left:0;right:0;z-index:5;background:rgba(26,31,36,0.92);backdrop-filter:blur(8px);padding:10px 28px 12px;flex-wrap:nowrap;overflow-x:auto;border-bottom:1px solid rgba(255,255,255,0.06);}
+.scene-nav::-webkit-scrollbar{height:6px;}
+.scene-nav::-webkit-scrollbar-thumb{background:#3B434B;}
+</style>
+<script>
+document.querySelectorAll(".scene-nav a").forEach(a=>{
+ a.addEventListener("click",e=>{
+  e.preventDefault();
+  const id=a.getAttribute("href").slice(1);
+  const target=document.getElementById(id);
+  if(target) target.scrollIntoView({behavior:"smooth",inline:"center",block:"nearest"});
+  document.querySelectorAll(".scene-nav a").forEach(x=>x.classList.remove("active"));
+  a.classList.add("active");
+ });
+});
+document.querySelectorAll(".scene").forEach(s=>{
+ s.setAttribute("data-title","");
+});
+</script>
+<script>
+document.addEventListener("keydown",e=>{
+ const active=document.querySelector(".scene-nav a.active");
+ const list=[...document.querySelectorAll(".scene-nav a")];
+ const idx=list.indexOf(active);
+ if(idx<0) return;
+ if(e.key==="ArrowRight"&&idx<list.length-1){list[idx+1].click();e.preventDefault();}
+ if(e.key==="ArrowLeft"&&idx>0){list[idx-1].click();e.preventDefault();}
+});
+const observer=new IntersectionObserver(entries=>{
+ entries.forEach(en=>{
+  if(en.isIntersecting&&en.intersectionRatio>0.5){
+   const id=en.target.id;
+   document.querySelectorAll(".scene-nav a").forEach(a=>a.classList.toggle("active",a.getAttribute("href")==="#"+id));
+  }
+ });
+},{root:document.querySelector(".deck"),threshold:[0.5]});
+document.querySelectorAll(".scene").forEach(s=>observer.observe(s));
+</script>
+<style id="grid-override">
+.deck{
+ display:grid !important;
+ grid-template-columns:repeat(auto-fill,380px);
+ justify-content:center !important;
+ align-content:start;
+ gap:32px !important;
+ padding:160px 32px 80px !important;
+ background:linear-gradient(180deg,#1A1F24 0%,#13171B 100%) !important;
+ min-height:100vh !important;
+ overflow-y:auto !important;
+ overflow-x:hidden !important;
+ flex-wrap:wrap !important;
+}
+.scene{flex:none !important;}
+.frame{
+ position:relative;display:block;width:380px;height:822px;border-radius:24px;overflow:hidden;
+ cursor:pointer;transition:transform .15s ease,box-shadow .15s ease;
+ box-shadow:0 12px 32px rgba(0,0,0,.45),0 0 0 1px rgba(255,255,255,.04);
+}
+.frame:hover{transform:translateY(-4px);box-shadow:0 24px 60px rgba(0,0,0,.55),0 0 0 1px rgba(232,84,44,.35);}
+.frame .badge{
+ position:absolute;top:0;left:0;right:0;z-index:3;
+ font-family:var(--ff-mono);font-size:10px;font-weight:600;color:var(--c-accent);letter-spacing:.16em;text-transform:uppercase;
+ background:rgba(255,253,248,.94);backdrop-filter:blur(4px);padding:6px 14px;border-bottom:1px solid var(--c-line-soft);
+ display:flex;justify-content:space-between;align-items:center;
+}
+.frame .badge .no{color:var(--c-ink);}
+.frame .badge .nm{color:var(--c-mute);font-size:9.5px;text-transform:none;letter-spacing:.04em;}
+.lightbox{position:fixed;inset:0;background:rgba(8,12,16,.88);backdrop-filter:blur(8px);z-index:100;display:none;align-items:center;justify-content:center;padding:40px;}
+.lightbox.open{display:flex;}
+.lightbox .holder{display:flex;gap:32px;align-items:flex-start;}
+.lightbox .x{
+ position:absolute;top:24px;right:24px;width:40px;height:40px;border-radius:50%;background:#252B30;color:#E6E1D6;border:1px solid #3B434B;cursor:pointer;font-size:18px;
+}
+.lightbox .info{width:260px;color:#E6E1D6;font-family:var(--ff-body);display:flex;flex-direction:column;gap:10px;}
+.lightbox .info h3{font-family:var(--ff-display);font-size:20px;margin:0;color:#fff;}
+.lightbox .info .meta{font-family:var(--ff-mono);font-size:11px;color:#8E96A0;letter-spacing:.06em;}
+.lightbox .info .note{font-size:13px;line-height:1.5;color:#A8AEB6;}
+.lightbox .info ul{padding:0;margin:0;list-style:none;font-size:13px;}
+.lightbox .info li{padding:6px 0;border-top:1px dashed rgba(255,255,255,.12);}
+.lightbox .info li:first-child{border-top:none;}
+</style>
+<script id="grid-js">
+const NOTES={
+ "s00":"AI 首页是销售统一入口；本封面给出思路与协议骨架。",
+ "s10":"开屏对话：欢迎消息 + KPI 摘要 + 待办缺口提示。",
+ "s11":"聚焦输入态：拍照 / 上传 / 模板 / 快捷指令。",
+ "s12":"多模态识别：拍照 → OCR 解析 → AI 流式回填字段。",
+ "s13":"生成客商草稿：可一键跳既有 *-new 表单页补字段。",
+ "s14":"客商编辑态：AI 预填 + 必填项高亮 + 提交 OA 审批。",
+ "s20":"会话抽屉：今天 / 昨天分组 + 固定收藏。",
+ "s30":"数据查询：业绩 KPI 摘要 + 下钻明细 + 提示起草邮件。",
+ "s40":"知识库问答：答案 + 出处引用 + 历史相似案例 + 合同草稿。",
+ "s50":"AI 功能入口：由命令触发代替独立 UI。",
+ "s60":"Tab 总览：midButton 文案改为「对话」。"
+};
+const POINTS={
+ "s00":["对外：用户一进入就能聊","对内：AI 退到 + 业务表单接手","协议：tool_calls 不强求，预填 JSON 已够"],
+ "s10":["AI 主动列待办","按客户 / 单 / 跟进聚合","给出可执行的下一动作"],
+ "s11":["拍照按钮放在输入栏右侧","快捷指令：查业绩 / 建客商 / 问流程"],
+ "s12":["OCR → 工商接口 → 风控校验","解析过程可视化进度"],
+ "s13":["AI 退出，业务表单接手","待补字段直接在原位高亮"],
+ "s14":["保留 提交审批 入口","缺项继续拍照继续补"],
+ "s20":["今天 / 昨天 / 本周 分组","固定收藏置顶"],
+ "s30":["KPI 卡片可点展开明细","提醒起草邮件留半成品"],
+ "s40":["出处段落带跳转","知识库可选上传一次多引用"],
+ "s50":["6 模块不再有独立 UI","命中后回当前对话"],
+ "s60":["5 个 tab 中间凸起改「对话」","工作台首屏新增打开对话卡"]
+};
+
+const deck=document.querySelector(".deck");
+const sceneInfo=[...deck.querySelectorAll(".scene")];
+sceneInfo.forEach((s,i)=>{
+ const wrap=document.createElement("div");
+ wrap.className="frame";wrap.dataset.target=s.id;
+ s.parentNode.insertBefore(wrap,s);wrap.appendChild(s);
+ const id=s.id.slice(1);
+ const name=s.getAttribute("data-name")||s.id;
+ const badge=document.createElement("div");badge.className="badge";
+ badge.innerHTML='<span class="no">SCENE '+id+'</span><span class="nm">'+name+'</span>';
+ wrap.appendChild(badge);
+ wrap.addEventListener("click",()=>openBox(s,id,name));
+});
+
+function openBox(sceneEl,id,name){
+ let box=document.querySelector(".lightbox");
+ if(!box){
+  box=document.createElement("div");box.className="lightbox";
+  box.innerHTML='<button class="x">×</button><div class="holder"></div>';
+  document.body.appendChild(box);
+  box.querySelector(".x").onclick=()=>box.classList.remove("open");
+  box.addEventListener("click",e=>{if(e.target===box)box.classList.remove("open")});
+  document.addEventListener("keydown",e=>{if(e.key==="Escape")box.classList.remove("open")});
+ }
+ const holder=box.querySelector(".holder");
+ holder.innerHTML="";
+ const info=document.createElement("div");info.className="info";
+ info.innerHTML='<div class="meta">SCENE '+id+'</div><h3>'+name+'</h3><div class="note">'+(NOTES[id]||"")+'</div><ul>'+(POINTS[id]||[]).map(p=>'<li>· '+p+'</li>').join("")+'</ul><div class="meta">ESC / 点空白处关闭</div>';
+ const frame=document.createElement("div");frame.className="frame";frame.style.width="390px";frame.style.height="844px";
+ frame.style.cursor="default";frame.style.boxShadow="0 24px 60px rgba(0,0,0,.6)";
+ const clone=sceneEl.cloneNode(true);clone.style.height="100%";clone.style.boxShadow="none";
+ frame.appendChild(clone);
+ holder.appendChild(info);holder.appendChild(frame);
+ box.classList.add("open");
+}
+
+document.querySelectorAll(".scene-nav a").forEach(a=>{
+ a.addEventListener("click",e=>{
+  e.preventDefault();
+  const id=a.getAttribute("href").slice(1);
+  const t=document.getElementById(id);
+  if(!t) return;
+  const wrap=t.closest(".frame");
+  if(wrap) wrap.scrollIntoView({behavior:"smooth",block:"center"});
+  document.querySelectorAll(".scene-nav a").forEach(x=>x.classList.toggle("active",x===a));
+ });
+});
+
+document.addEventListener("keydown",e=>{
+ if(e.key==="Escape"&&document.querySelector(".lightbox.open")) return;
+ const active=document.querySelector(".scene-nav a.active");
+ const list=[...document.querySelectorAll(".scene-nav a")];
+ const idx=list.indexOf(active);
+ if(idx<0) return;
+ if(e.key==="ArrowRight"&&idx<list.length-1) list[idx+1].click();
+ if(e.key==="ArrowLeft"&&idx>0) list[idx-1].click();
+});
+</script>
+<style id="compact-style">
+.deck{
+ padding:130px 24px 32px !important;
+ gap:14px !important;
+ grid-template-columns:repeat(auto-fill,137px) !important;justify-content:center !important;
+ align-content:start !important;
+ max-width:none !important;
+}
+.frame{
+ width:137px !important;height:296px !important;
+ border-radius:10px !important;
+ background:var(--c-paper) !important;
+ transition:transform .15s ease,box-shadow .15s ease;
+ box-shadow:0 6px 18px rgba(0,0,0,.4),0 0 0 1px rgba(255,255,255,.04);
+}
+.frame:hover{transform:translateY(-3px);box-shadow:0 14px 30px rgba(0,0,0,.55),0 0 0 1px rgba(232,84,44,.4);}
+.frame > .scene{
+ position:absolute !important;top:0;left:0 !important;
+ width:380px !important;height:822px !important;
+ transform:scale(0.36) !important;
+ transform-origin:top left !important;
+ border-radius:0 !important;
+ pointer-events:none;
+}
+.frame .badge{
+ font-size:8px !important;padding:3px 6px !important;
+ background:rgba(255,253,248,.92) !important;
+ border-bottom:1px solid var(--c-line-soft) !important;
+ gap:4px !important;
+}
+.frame .badge .no{color:var(--c-accent) !important;}
+.frame .badge .nm{display:none !important;}
+.frame::after{
+ content:attr(data-name);
+ position:absolute;left:0;right:0;bottom:-18px;text-align:center;
+ font-family:var(--ff-mono);font-size:9.5px;letter-spacing:.04em;color:#A8AEB6;
+ white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+</style>

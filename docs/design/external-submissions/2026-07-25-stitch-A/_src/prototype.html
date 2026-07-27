@@ -1,0 +1,400 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<title>销卓宝 · 20 屏微交互原型</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous"/>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;700;900&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+﻿:root{
+  --paper:#F2EBDF;--ink:#16181B;--ink-2:#3B434B;--mute:#6F7780;
+  --accent:#E8542C;--accent-2:#C7431F;--ok:#2E7D5B;--warn:#B07F1F;--blue:#2E5A88;
+  --ff-serif:"Noto Serif SC","Source Han Serif SC",serif;
+  --ff-sans:"Noto Sans SC","PingFang SC",system-ui,sans-serif;
+  --ff-mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+}
+*{box-sizing:border-box;-webkit-font-smoothing:antialiased;}
+html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#0E1216;color:#E6E1D6;font-family:var(--ff-sans);font-size:14px;}
+.app{display:flex;width:100vw;height:100vh;}
+.sidebar{width:260px;flex-shrink:0;background:#161A1F;border-right:1px solid rgba(255,255,255,0.06);display:flex;flex-direction:column;overflow:hidden;}
+.sidebar .brand{padding:24px 22px 18px;border-bottom:1px solid rgba(255,255,255,0.04);}
+.sidebar .brand h1{font-family:var(--ff-serif);font-size:18px;font-weight:700;margin:0 0 4px;letter-spacing:0.04em;}
+.sidebar .brand .sub{font-family:var(--ff-mono);font-size:10px;letter-spacing:0.22em;color:#6F7780;text-transform:uppercase;}
+.sidebar .list{flex:1;overflow-y:auto;padding:10px 8px 18px;}
+.sidebar .list::-webkit-scrollbar{width:6px;}
+.sidebar .list::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.08);border-radius:3px;}
+.screen-btn{display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px;border:0;background:transparent;color:#C7CCD2;text-align:left;border-radius:10px;cursor:pointer;font:inherit;font-size:13px;transition:background .15s;}
+.screen-btn:hover{background:rgba(255,255,255,0.04);}
+.screen-btn.on{background:rgba(232,84,44,0.14);color:#fff;}
+.screen-btn .num{font-family:var(--ff-mono);font-size:10px;letter-spacing:0.1em;color:#6F7780;width:24px;text-align:center;}
+.screen-btn.on .num{color:var(--accent);font-weight:700;}
+.screen-btn .name{flex:1;font-size:13px;}
+.screen-btn .dot{width:6px;height:6px;border-radius:50%;background:transparent;}
+.screen-btn.on .dot{background:var(--accent);box-shadow:0 0 8px var(--accent);}
+.sidebar .tips{padding:14px 22px 20px;border-top:1px solid rgba(255,255,255,0.04);font-family:var(--ff-mono);font-size:10px;letter-spacing:0.16em;color:#6F7780;line-height:1.7;text-transform:uppercase;}
+.sidebar .tips b{color:var(--accent);font-weight:700;display:block;margin-bottom:4px;}
+.stage{flex:1;display:flex;align-items:center;justify-content:center;position:relative;background:radial-gradient(900px 700px at 50% 30%,rgba(232,84,44,0.16),transparent 60%),radial-gradient(800px 600px at 50% 90%,rgba(46,90,136,0.10),transparent 65%);min-width:0;}
+.phone{position:relative;width:390px;height:844px;border-radius:42px;overflow:hidden;background:var(--paper);box-shadow:0 30px 80px rgba(0,0,0,0.55),0 0 0 8px #0E1216,0 0 0 10px #2A2F35,0 0 0 18px rgba(0,0,0,0.6);flex-shrink:0;}
+.phone img.bg{position:absolute;inset:0;width:100%;height:100%;display:block;object-fit:cover;}
+.hotspot{position:absolute;cursor:pointer;border-radius:10px;transition:background .2s,box-shadow .2s;border:1px solid transparent;z-index:5;}
+.hotspot:hover{background:rgba(232,84,44,0.18);border-color:rgba(232,84,44,0.5);box-shadow:0 0 0 4px rgba(232,84,44,0.10);}
+.hotspot::after{content:attr(data-label);position:absolute;bottom:-22px;left:50%;transform:translateX(-50%);background:rgba(15,18,21,0.92);color:#fff;font-family:var(--ff-mono);font-size:9px;letter-spacing:0.16em;padding:3px 6px;border-radius:6px;white-space:nowrap;opacity:0;transition:opacity .2s;pointer-events:none;text-transform:uppercase;}
+.hotspot:hover::after{opacity:1;}
+.nav{position:absolute;bottom:24px;left:50%;transform:translateX(-50%);display:flex;gap:10px;z-index:9;}
+.nav button{appearance:none;border:0;background:rgba(15,18,21,0.78);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);color:#E6E1D6;font-family:var(--ff-mono);font-size:11px;letter-spacing:0.18em;padding:8px 14px;border-radius:18px;cursor:pointer;border:1px solid rgba(255,255,255,0.08);}
+.nav button:hover{background:rgba(232,84,44,0.4);}
+.right{width:340px;flex-shrink:0;background:#161A1F;border-left:1px solid rgba(255,255,255,0.06);display:flex;flex-direction:column;overflow:hidden;}
+.right header{padding:22px 22px 16px;border-bottom:1px solid rgba(255,255,255,0.04);}
+.right header h2{font-family:var(--ff-serif);font-size:18px;font-weight:700;margin:0 0 4px;}
+.right header .sub{font-family:var(--ff-mono);font-size:10px;letter-spacing:0.22em;color:#6F7780;text-transform:uppercase;}
+.right .ix-list{flex:1;overflow-y:auto;padding:14px 16px;}
+.right .ix-list::-webkit-scrollbar{width:6px;}
+.right .ix-list::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.08);border-radius:3px;}
+.ix{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06);border-radius:14px;padding:14px;margin-bottom:10px;transition:border-color .2s,background .2s;cursor:pointer;}
+.ix:hover{border-color:rgba(232,84,44,0.4);background:rgba(232,84,44,0.06);}
+.ix.active{border-color:var(--accent);background:rgba(232,84,44,0.12);}
+.ix .head{display:flex;align-items:center;gap:10px;margin-bottom:6px;}
+.ix .tag{font-family:var(--ff-mono);font-size:9px;letter-spacing:0.18em;color:var(--accent);background:rgba(232,84,44,0.14);padding:3px 8px;border-radius:6px;}
+.ix .name{font-family:var(--ff-serif);font-size:13px;font-weight:700;color:#E6E1D6;flex:1;}
+.ix .desc{font-size:11px;color:#9AA0A8;line-height:1.5;}
+.fx-overlay{position:absolute;pointer-events:none;z-index:50;}
+.fx-spot{position:absolute;border:2.5px solid var(--accent);border-radius:14px;pointer-events:none;z-index:60;box-shadow:0 0 0 6px rgba(232,84,44,0.14),0 12px 32px rgba(232,84,44,0.28);animation:spotPulse 2s ease-in-out infinite;}
+@keyframes spotPulse{0%,100%{transform:scale(1);opacity:1;}50%{transform:scale(1.025);opacity:0.85;}}
+.fx-callout{position:absolute;background:rgba(15,18,21,0.96);color:#fff;font-family:var(--ff-mono);font-size:10px;letter-spacing:0.16em;padding:5px 9px;border-radius:6px;z-index:70;border:1px solid rgba(232,84,44,0.6);text-transform:uppercase;animation:callIn .25s ease-out;white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,0.3);font-weight:600;}.fx-callout::after{content:"";position:absolute;left:50%;bottom:-5px;width:8px;height:8px;background:rgba(15,18,21,0.96);border-right:1px solid rgba(232,84,44,0.6);border-bottom:1px solid rgba(232,84,44,0.6);transform:translateX(-50%) rotate(45deg);}
+@keyframes callIn{from{opacity:0;transform:translateY(-3px);}to{opacity:1;transform:translateY(0);}}
+.fx-ripple{position:absolute;border-radius:50%;background:rgba(232,84,44,0.45);transform:translate(-50%,-50%);pointer-events:none;z-index:55;animation:rippleOut .8s ease-out forwards;}
+@keyframes rippleOut{0%{width:0;height:0;opacity:1;}100%{width:160px;height:160px;opacity:0;}}
+.fx-flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:80;animation:flashOut .45s ease-out;}
+@keyframes flashOut{0%{opacity:0;}30%{opacity:0.35;}100%{opacity:0;}}
+.fx-toast{position:absolute;left:50%;bottom:104px;transform:translateX(-50%);background:rgba(15,18,21,0.94);color:#fff;font-family:var(--ff-sans);font-size:12px;padding:9px 16px;border-radius:22px;z-index:90;border:1px solid rgba(232,84,44,0.5);animation:toastIn .3s cubic-bezier(0.22,1,0.36,1);display:flex;align-items:center;gap:7px;white-space:nowrap;box-shadow:0 8px 24px rgba(0,0,0,0.4);max-width:330px;}
+@keyframes toastIn{from{opacity:0;transform:translate(-50%,12px);}to{opacity:1;transform:translate(-50%,0);}}
+.fx-shake{animation:shakeWiggle .4s linear;}
+@keyframes shakeWiggle{0%,100%{transform:translateX(0);}20%,60%{transform:translateX(-6px);}40%,80%{transform:translateX(6px);}}
+.fx-bar-wrap{position:absolute;left:14px;right:14px;height:4px;background:rgba(0,0,0,0.12);border-radius:2px;overflow:hidden;z-index:55;}
+.fx-bar{height:100%;width:0%;background:var(--accent);transition:width .8s cubic-bezier(0.22,1,0.36,1);}
+.fx-pill{position:absolute;display:inline-flex;align-items:center;gap:6px;background:rgba(15,18,21,0.94);color:#fff;font-family:var(--ff-sans);font-size:12px;padding:8px 14px;border-radius:999px;z-index:75;border:1px solid rgba(232,84,44,0.5);animation:toastIn .3s cubic-bezier(0.22,1,0.36,1);white-space:nowrap;}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><h1>销卓宝</h1><div class="sub">PROTOTYPE · v0.3 · 20 SCREENS</div></div>
+    <div class="list" id="screenBtns"></div>
+    <div class="tips"><b>TIPS</b>点右侧 IX 触发微交互<br/>左右键切换屏幕<br/>ESC 复位当前交互</div>
+  </aside>
+  <main class="stage">
+    <div class="phone" id="phone">
+      <img class="bg" id="screenImg" src="../screen-01-default.png" alt=""/>
+      <div id="hotspots"></div>
+    </div>
+  </main>
+  <aside class="right">
+    <header><h2 id="ixTitle">默认空态</h2><div class="sub" id="ixMeta">SCREEN 01 · 3 INTERACTIONS</div></header>
+    <div class="ix-list" id="ixList"></div>
+  </aside>
+</div>
+<script>﻿// ============ FX ENGINE ============
+const PHONE=document.getElementById('phone');
+const IMG=document.getElementById('screenImg');
+const HS=document.getElementById('hotspots');
+function fxClear(){PHONE.querySelectorAll('.fx-overlay,.fx-spot,.fx-callout,.fx-ripple,.fx-flash,.fx-toast,.fx-bar-wrap,.fx-pill').forEach(e=>e.remove());}
+function fxSpot(r,label){
+ const s=document.createElement('div');s.className='fx-spot fx-overlay';
+ s.style.cssText=`left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px;`;
+ PHONE.appendChild(s);
+ if(label){
+  const c=document.createElement('div');c.className='fx-callout';
+  c.textContent=label;
+  // Measure first to avoid overlap, then position arrow-down above spot
+  c.style.cssText=`left:${r.x+r.w/2}px;top:${r.y}px;transform:translate(-50%,-100%) translateY(-10px);position:absolute;z-index:70;`;
+PHONE.appendChild(c);
+ }
+}
+function fxRipple(x,y){const r=document.createElement('div');r.className='fx-ripple';r.style.left=x+'px';r.style.top=y+'px';PHONE.appendChild(r);setTimeout(()=>r.remove(),900);}
+function fxFlash(){const f=document.createElement('div');f.className='fx-flash';PHONE.appendChild(f);setTimeout(()=>f.remove(),500);}
+function fxToast(text,opts){
+ const t=document.createElement('div');t.className='fx-toast';
+ if(opts&&opts.top!=null){t.style.bottom='auto';t.style.top=opts.top+'px';}
+ t.innerHTML='<span style="width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent);flex-shrink:0;"></span><span>'+text+'</span>';
+ PHONE.appendChild(t);
+ setTimeout(()=>t.remove(),2400);
+}
+function fxProgress(y,h,pct){
+ const w=document.createElement('div');w.className='fx-bar-wrap fx-overlay';
+ w.style.cssText=`top:${y}px;height:${h}px;`;
+ const bar=document.createElement('div');bar.className='fx-bar';w.appendChild(bar);
+ PHONE.appendChild(w);
+ requestAnimationFrame(()=>{bar.style.width=pct+'%';});
+ setTimeout(()=>w.remove(),2400);
+}
+function fxShake(el){el.classList.add('fx-shake');setTimeout(()=>el.classList.remove('fx-shake'),450);}
+
+// ============ DATA ============
+const SCREENS=[
+ {id:'01',file:'screen-01-default.png',title:'默认空态',meta:'SCREEN 01 · AI 对话首页空态'},
+ {id:'02',file:'screen-02-input.png',title:'输入交互',meta:'SCREEN 02 · 输入条 5 态与附件'},
+ {id:'03',file:'screen-03-recognize.png',title:'多模态识别',meta:'SCREEN 03 · OCR 识别名片'},
+ {id:'04',file:'screen-04-form-fill.png',title:'表单填写',meta:'SCREEN 04 · 字段填写与一键补'},
+ {id:'05',file:'screen-05-data-query.png',title:'数据查询',meta:'SCREEN 05 · 业绩 KPI'},
+ {id:'06',file:'screen-06-kb-qa.png',title:'知识问答',meta:'SCREEN 06 · 知识库引用'},
+ {id:'07',file:'screen-07-session-drawer.png',title:'会话抽屉',meta:'SCREEN 07 · 历史会话'},
+ {id:'08',file:'screen-08-error-states.png',title:'错误状态',meta:'SCREEN 08 · 503 与重试'},
+ {id:'09',file:'screen-09-onboarding.png',title:'首次引导',meta:'SCREEN 09 · 角色选择'},
+ {id:'10',file:'screen-10-camera.png',title:'拍照识别',meta:'SCREEN 10 · 相机取景'},
+ {id:'11',file:'screen-11-entry-panel.png',title:'快捷入口',meta:'SCREEN 11 · F1-F8 入口面板'},
+ {id:'12',file:'screen-12-voice.png',title:'语音输入',meta:'SCREEN 12 · 语音转写'},
+ {id:'13',file:'screen-13-follow-up-plan.png',title:'跟进计划',meta:'SCREEN 13 · 客户跟进任务'},
+ {id:'14',file:'screen-14-ai-proactive.png',title:'AI 主动建议',meta:'SCREEN 14 · 上下文建议'},
+ {id:'15',file:'screen-15-session-detail.png',title:'会话详情',meta:'SCREEN 15 · 时间线复盘'},
+ {id:'16',file:'screen-16-empty-history.png',title:'历史空态',meta:'SCREEN 16 · 暂无会话'},
+ {id:'17',file:'screen-17-multi-user.png',title:'多人协作',meta:'SCREEN 17 · 转交负责人'},
+ {id:'18',file:'screen-18-settings.png',title:'偏好设置',meta:'SCREEN 18 · 主题与人格'},
+ {id:'19',file:'screen-19-customer-confirm.png',title:'客户确认',meta:'SCREEN 19 · 8/8 写入确认'},
+ {id:'20',file:'screen-20-notification.png',title:'通知中心',meta:'SCREEN 20 · 高优待办'},
+];
+
+// Hotspots per screen (x,y,w,h,label) — relative to 390x844 viewport
+const HOTSPOTS={
+'01':[
+ {x:14,y:380,w:114,h:104,label:'拍照建档'},
+ {x:138,y:380,w:114,h:104,label:'查业绩'},
+ {x:262,y:380,w:114,h:104,label:'补资料'},
+ {x:163,y:760,w:64,h:64,label:'AI 入口'},
+],
+'02':[
+ {x:12,y:694,w:280,h:50,label:'输入条'},
+ {x:300,y:694,w:78,h:50,label:'发送'},
+],
+'03':[
+ {x:14,y:430,w:362,h:8,label:'进度条'},
+ {x:200,y:480,w:80,h:30,label:'一键补?'},
+],
+'04':[
+ {x:14,y:380,w:362,h:60,label:'字段区'},
+ {x:14,y:740,w:362,h:50,label:'一键补齐'},
+],
+'05':[
+ {x:14,y:230,w:362,h:120,label:'KPI 卡'},
+ {x:14,y:380,w:362,h:200,label:'图表'},
+],
+'06':[
+ {x:14,y:380,w:362,h:60,label:'AI 回答'},
+ {x:14,y:680,w:362,h:100,label:'来源引用'},
+],
+'07':[
+ {x:14,y:400,w:362,h:80,label:'会话卡'},
+ {x:14,y:600,w:362,h:60,label:'操作按钮'},
+],
+'08':[
+ {x:14,y:280,w:362,h:60,label:'错误卡'},
+ {x:14,y:680,w:362,h:60,label:'立即重试'},
+],
+'09':[
+ {x:14,y:240,w:362,h:80,label:'角色卡'},
+ {x:14,y:720,w:362,h:60,label:'继续按钮'},
+],
+'10':[
+ {x:160,y:760,w:70,h:70,label:'快门'},
+ {x:14,y:760,w:50,h:50,label:'翻转'},
+],
+'11':[
+ {x:24,y:340,w:108,h:108,label:'F3'},
+ {x:140,y:340,w:108,h:108,label:'F4'},
+ {x:256,y:340,w:108,h:108,label:'F5'},
+],
+'12':[
+ {x:160,y:580,w:70,h:70,label:'麦克风'},
+ {x:14,y:740,w:362,h:60,label:'转写条'},
+],
+'13':[
+ {x:14,y:280,w:362,h:84,label:'执行中'},
+ {x:14,y:380,w:362,h:84,label:'计划 2'},
+],
+'14':[
+ {x:14,y:200,w:362,h:80,label:'建议 1'},
+ {x:14,y:300,w:362,h:80,label:'建议 2'},
+],
+'15':[
+ {x:14,y:200,w:362,h:80,label:'画像'},
+ {x:14,y:320,w:362,h:60,label:'时间线'},
+],
+'16':[
+ {x:14,y:500,w:362,h:50,label:'建议 1'},
+ {x:14,y:560,w:362,h:50,label:'建议 2'},
+],
+'17':[
+ {x:14,y:220,w:170,h:96,label:'头像 1'},
+ {x:200,y:220,w:170,h:96,label:'头像 2'},
+ {x:14,y:700,w:362,h:60,label:'确认转交'},
+],
+'18':[
+ {x:14,y:240,w:362,h:60,label:'主题切换'},
+ {x:14,y:360,w:362,h:80,label:'人格'},
+ {x:14,y:740,w:362,h:50,label:'保存'},
+],
+'19':[
+ {x:14,y:380,w:362,h:60,label:'立即跟进'},
+ {x:14,y:460,w:362,h:60,label:'查看清单'},
+],
+'20':[
+ {x:14,y:180,w:362,h:80,label:'通知 1'},
+ {x:14,y:280,w:362,h:80,label:'通知 2'},
+],
+};
+
+// Interactions per screen — runs on hotspot click or IX card click
+const IX={
+'01':[
+ {name:'快捷入口点击',desc:'点击拍照建档:按下态→浮起→二级入口展开',run:()=>{fxSpot({x:14,y:380,w:114,h:104},'PRESS');fxRipple(71,432);fxToast('已展开 · 上传图片直接建客户');}},
+ {name:'AI 中部按钮',desc:'点击中央 AI 圆按钮:输入条从底部上滑出现',run:()=>{fxSpot({x:163,y:760,w:64,h:64},'TAP');fxRipple(195,792);fxToast('输入条已就绪 · 键盘上滑');}},
+ {name:'历史气泡回放',desc:'点击用户气泡:整段高亮 + 滚动到最新 AI 回复',run:()=>{fxToast('已定位到最新 AI 回复 · 3 条历史');}},
+],
+'02':[
+ {name:'输入框聚焦',desc:'点击输入条:边框变橙 + 闪烁光标 + 模拟键盘上滑',run:()=>{fxSpot({x:12,y:694,w:280,h:50},'FOCUS');fxToast('已聚焦 · 键盘上滑 280ms',{top:140});}},
+ {name:'字符计数 + 发送',desc:'输入字符:计数从 0→12,发送键从灰变橙',run:()=>{fxToast('已输入 12 / 500 · 发送键激活');}},
+ {name:'附件 chip',desc:'点 + 入口:输入条上方一行 chip 弹出',run:()=>{fxToast('已选 2 个附件 · 名片.jpg · 报价单.pdf',{top:140});}},
+],
+'03':[
+ {name:'识别流程回放',desc:'进度条 0→100%,6 字段 stagger 勾选',run:()=>{fxProgress(434,4,74);fxToast('OCR 完成 74% · 地址待补');}},
+ {name:'一键补触发',desc:'点击 一键补?:地址栏 shake → 自动填充',run:()=>{fxSpot({x:14,y:480,w:362,h:36},'SHAKE');fxToast('已自动补全地址字段 · 8/8');}},
+],
+'04':[
+ {name:'字段聚焦',desc:'点击空白字段:边框橙色 + 光标闪',run:()=>{fxSpot({x:14,y:380,w:362,h:60},'FOCUS');fxToast('字段已聚焦 · 输入光标 1.2s 闪');}},
+ {name:'一键补齐',desc:'点 一键补齐:3 字段填充 + 提交按钮 enable',run:()=>{fxToast('已补齐 3 项 · 提交按钮 enable');}},
+ {name:'提交按钮',desc:'点 提交入库:按下→loading 0.8s→成功',run:()=>{fxFlash();fxToast('已写入客户档案 · trace 7f3a-b821');}},
+],
+'05':[
+ {name:'KPI 数字跳动',desc:'悬停 KPI:数值 0→当前值的数字滚动',run:()=>{fxSpot({x:14,y:230,w:362,h:120},'HOVER');fxToast('本月成交 ¥1,284,000 · 同比 +12.4%');}},
+ {name:'图表柱 tooltip',desc:'点击柱子:tooltip 滑出显示具体数值',run:()=>{fxPill('7/18 · ¥186k','var(--blue)');}},
+ {name:'维度切换',desc:'点击 本周:数字与图表平滑过渡',run:()=>{fxToast('已切换到本周 · 数字过渡 320ms');}},
+],
+'06':[
+ {name:'流式打字',desc:'AI 文字按 token 逐字渲染 + avatar 闪烁',run:()=>{fxSpot({x:14,y:380,w:362,h:60},'STREAM');fxToast('正在流式输出 · 15ms / 字');}},
+ {name:'来源展开',desc:'点击引用卡片:来源详情滑出',run:()=>{fxSpot({x:14,y:680,w:362,h:100},'EXPAND');fxToast('引用 #C20-报价手册 §3.2 已展开');}},
+],
+'07':[
+ {name:'抽屉上滑',desc:'从底部上滑抽屉 + 背景轻微变暗',run:()=>{fxToast('抽屉上滑 280ms · 背景 dim 30%');}},
+ {name:'会话长按',desc:'长按会话卡:浮出 归档 / 删除 / 置顶 chips',run:()=>{fxPill('置顶 · 归档 · 删除 · 5s 后收起','var(--warn)');}},
+],
+'08':[
+ {name:'倒计时重试',desc:'3 秒倒计时跑完后自动触发重试 loading',run:()=>{
+  let n=3;const t=document.createElement('div');t.className='fx-toast';t.style.top='160px';
+  t.innerHTML='<span style="width:6px;height:6px;border-radius:50%;background:var(--danger);"></span>自动重试 '+n+'s';PHONE.appendChild(t);
+  const id=setInterval(()=>{n--;if(n<=0){clearInterval(id);t.innerHTML='<span style="width:6px;height:6px;border-radius:50%;background:var(--ok);"></span>重试成功';setTimeout(()=>t.remove(),1500);}else{t.innerHTML='<span style="width:6px;height:6px;border-radius:50%;background:var(--danger);"></span>自动重试 '+n+'s';}},1000);
+ }},
+ {name:'离线 fallback',desc:'点 离线仍可做:本地条目逐条亮起',run:()=>{fxToast('本地 SOP 检索可用 · 17 条');}},
+],
+'09':[
+ {name:'角色卡选中',desc:'点击角色卡:边框变橙 + 勾选 + 进度条推进',run:()=>{fxSpot({x:14,y:240,w:362,h:80},'SELECTED');fxToast('已选择 销售代表 · 进度 1/3');}},
+ {name:'继续按钮',desc:'点 继续:进度条 33%→66%,卡片 stagger 切换',run:()=>{fxToast('已进入下一步 · 进度 2/3');}},
+ {name:'跳过引导',desc:'点 跳过:整页 fade-out 后回首页',run:()=>{fxToast('已跳过引导 · 回首页');}},
+],
+'10':[
+ {name:'快门按下',desc:'点快门:闪光 + 取景框拍照动画',run:()=>{fxFlash();fxSpot({x:160,y:760,w:70,h:70},'SHUTTER');fxToast('已拍摄 · 进入识别流程',{top:580});}},
+ {name:'前后摄像头',desc:'点翻转图标:画面 180° 旋转切换',run:()=>{fxToast('已切换至前置摄像头',{top:140});}},
+ {name:'取景框 pulse',desc:'取景框边角呼吸 1.6s,引导对齐',run:()=>{fxSpot({x:46,y:280,w:298,h:200},'AIM');}},
+],
+'11':[
+ {name:'F 键 tile 点击',desc:'点击 F3 补资料:ripple + 跳转 cue',run:()=>{fxSpot({x:24,y:340,w:108,h:108},'F3 · PRESS');fxRipple(78,394);fxToast('已启动 · 补资料流程');}},
+ {name:'长按说明',desc:'长按 tile:浮出说明气泡',run:()=>{fxPill('F3 · 缺照片单子一次补','var(--warn)');}},
+],
+'12':[
+ {name:'开始录音',desc:'点 mic:波形出现 + 倒计时 0:05',run:()=>{fxSpot({x:160,y:580,w:70,h:70},'REC');fxToast('正在录音 · 00:05 · 实时转写中');}},
+ {name:'实时转写',desc:'底部文字按 15ms / 字流式出现',run:()=>{fxSpot({x:14,y:740,w:362,h:60},'STREAM');fxToast('转写中 · 已识别 38 字');}},
+ {name:'停止录音',desc:'点停止:波形消失 + 文字锁定 + 出现编辑条',run:()=>{fxToast('录音已保存 · 进入编辑');}},
+],
+'13':[
+ {name:'计划 stagger',desc:'5 张计划卡 stagger 浮入',run:()=>{fxToast('5 项计划已就绪 · 1 项执行中');}},
+ {name:'执行中 pulse',desc:'执行中卡片边框 1.6s 呼吸',run:()=>{fxSpot({x:14,y:280,w:362,h:84},'ACTIVE');}},
+ {name:'展开步骤',desc:'点计划:展开 4 个执行步骤',run:()=>{fxToast('展开 4 步骤 · 第 2 步进行中');}},
+],
+'14':[
+ {name:'建议浮入',desc:'3 张建议卡 stagger float-in',run:()=>{fxToast('AI 已根据上下文生成 3 条建议');}},
+ {name:'接受建议',desc:'点 ✓:勾画 + 卡片沉入底部',run:()=>{fxSpot({x:14,y:200,w:362,h:80},'ACCEPT');fxToast('已接受 · 已生成跟进任务');}},
+ {name:'关闭建议',desc:'点 ×:卡片 slide-out + 不再提示',run:()=>{fxToast('已忽略 · 24h 内不再提示');}},
+],
+'15':[
+ {name:'时间线 fade-in',desc:'5 条时间线条目 stagger 浮入',run:()=>{fxToast('5 条历史操作已加载');}},
+ {name:'Tab 切换',desc:'点 摘要 tab:内容 cross-fade',run:()=>{fxToast('已切换至 摘要 · 320ms');}},
+ {name:'客户画像展开',desc:'点 profile chip:头像 + 标签展开',run:()=>{fxSpot({x:14,y:200,w:362,h:80},'EXPAND');fxToast('已加载客户画像');}},
+],
+'16':[
+ {name:'空态插图呼吸',desc:'空态插图 4s 缓慢上下浮',run:()=>{fxToast('暂无会话 · 推荐先试试这些');}},
+ {name:'建议 chip',desc:'4 个建议 chip stagger 浮入',run:()=>{fxToast('已展示 4 个推荐入口');}},
+ {name:'点击进入',desc:'点 chip:对应功能启动',run:()=>{fxSpot({x:14,y:500,w:362,h:50},'TAP');fxToast('已跳转至 拍照建档');}},
+],
+'17':[
+ {name:'头像选中',desc:'点头像:边框橙色 + ring 动画',run:()=>{fxSpot({x:14,y:220,w:170,h:96},'SELECTED');fxToast('已选 1 位转交人',{top:130});}},
+ {name:'转交表单',desc:'点 转交:备注字段 + 时间字段滑入',run:()=>{fxToast('已展开转交表单 · 3 项',{top:140});}},
+ {name:'确认转交',desc:'点 确认:loading → 成功 toast',run:()=>{fxFlash();fxToast('已转交 · 对方将收到通知',{top:580});}},
+],
+'18':[
+ {name:'主题切换',desc:'点 暗色:整屏颜色 cross-fade 320ms',run:()=>{fxSpot({x:14,y:240,w:362,h:60},'THEME');fxToast('已切换至 暗色模式 · 320ms');}},
+ {name:'人格切换',desc:'点 助手人格:滑块 glide + 描述变化',run:()=>{fxSpot({x:14,y:360,w:362,h:80},'PERSONA');fxToast('已切换至 简洁版 · 描述已更新');}},
+ {name:'保存提示',desc:'点 保存:顶部 toast 滑入 2s 后消失',run:()=>{fxToast('偏好已保存 · 下次启动生效');}},
+],
+'19':[
+ {name:'8/8 数字滚动',desc:'写入进度 0/8 → 8/8,数字 ease-out 1.2s',run:()=>{fxToast('已完成 8/8 项确认',{top:540});}},
+ {name:'勾画 checkmark',desc:'8 个 ✓ 按顺序 SVG draw',run:()=>{fxToast('全部字段已确认',{top:540});}},
+ {name:'庆祝 burst',desc:'页面顶部一道暖色光带从左滑到右',run:()=>{fxFlash();fxToast('写入成功 · 已同步 CRM',{top:540});}},
+],
+'20':[
+ {name:'通知 stagger',desc:'4 张优先级卡片 slide-in 60ms 间隔',run:()=>{fxToast('4 条新通知 · 2 条高优');}},
+ {name:'优先级展开',desc:'点 高优:卡片展开详情 + 操作按钮',run:()=>{fxSpot({x:14,y:180,w:362,h:80},'HIGH');fxToast('已展开 · 1 项待处理');}},
+ {name:'Filter 切换',desc:'点 仅看高优:列表过滤 200ms',run:()=>{fxToast('已过滤 · 仅显示 2 条高优');}},
+]};
+
+// ============ RENDER ============
+let activeId='01',activeIdx=-1;
+function buildSidebar(){
+ const root=document.getElementById('screenBtns');root.innerHTML='';
+ SCREENS.forEach(s=>{
+  const b=document.createElement('button');b.className='screen-btn';b.dataset.id=s.id;
+  b.innerHTML='<span class="num">'+s.id+'</span><span class="name">'+s.title+'</span><span class="dot"></span>';
+  b.onclick=()=>showScreen(s.id);root.appendChild(b);
+ });
+}
+function buildHotspots(id){
+ HS.innerHTML='';
+ (HOTSPOTS[id]||[]).forEach((h,i)=>{
+  const el=document.createElement('div');el.className='hotspot';
+  el.style.cssText=`left:${h.x}px;top:${h.y}px;width:${h.w}px;height:${h.h}px;`;
+  el.dataset.label=h.label;
+  el.dataset.idx=i;
+  el.onclick=()=>{
+   const list=IX[id]||[];
+   if(list[i]){fxClear();list[i].run();markActive(i);}
+  };
+  HS.appendChild(el);
+ });
+}
+function buildInteractions(id){
+ const list=document.getElementById('ixList');list.innerHTML='';
+ const meta=document.getElementById('ixMeta');const title=document.getElementById('ixTitle');
+ const s=SCREENS.find(x=>x.id===id);title.textContent=s.title;meta.textContent=s.meta;
+ (IX[id]||[]).forEach((ix,idx)=>{
+  const card=document.createElement('div');card.className='ix';card.dataset.idx=idx;
+  card.innerHTML='<div class="head"><div class="tag">IX · 0'+(idx+1)+'</div><div class="name">'+ix.name+'</div></div><div class="desc">'+ix.desc+'</div>';
+  card.onclick=()=>{fxClear();ix.run();markActive(idx);};
+  list.appendChild(card);
+ });
+}
+function markActive(idx){
+ activeIdx=idx;
+ document.querySelectorAll('.ix').forEach((c,i)=>c.classList.toggle('active',i===idx));
+}
+function showScreen(id){
+ activeId=id;activeIdx=-1;
+ document.querySelectorAll('.screen-btn').forEach(b=>b.classList.toggle('on',b.dataset.id===id));
+ IMG.src='../'+SCREENS.find(x=>x.id===id).file;
+ IMG.onload=()=>{fxClear();buildHotspots(id);buildInteractions(id);};
+}
+document.addEventListener('keydown',(e)=>{
+ if(e.key==='ArrowLeft'){const i=SCREENS.findIndex(s=>s.id===activeId);showScreen(SCREENS[(i-1+SCREENS.length)%SCREENS.length].id);}
+ else if(e.key==='ArrowRight'){const i=SCREENS.findIndex(s=>s.id===activeId);showScreen(SCREENS[(i+1)%SCREENS.length].id);}
+ else if(e.key==='Escape'){fxClear();markActive(-1);}
+});
+buildSidebar();
+showScreen('01');
+</script></body></html>
