@@ -10,10 +10,12 @@ import { ResponseInterceptor } from './common/interceptors/response.interceptor'
 import { IdempotencyInterceptor } from './common/interceptors/idempotency.interceptor';
 import { CacheControlInterceptor } from './common/interceptors/cache-control.interceptor';
 import { RequestLogInterceptor } from './common/interceptors/request-log.interceptor';
+import { CorsMiddleware } from './common/middleware/cors.middleware';
 import { TraceIdMiddleware } from './common/middleware/trace-id.middleware';
 import { GlobalThrottlerGuard } from './common/throttler/global-throttler.guard';
 import { validateEnvironment } from './config/env';
 import { PrismaModule } from './infra/prisma/prisma.module';
+import { RedisModule } from './infra/redis/redis.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { AftersalesModule } from './modules/aftersales/aftersales.module';
 import { AiModule } from './modules/ai/ai.module';
@@ -55,6 +57,7 @@ import { ObservabilityModule } from './observability/observability.module';
     }),
     ObservabilityModule,
     PrismaModule,
+    RedisModule,
     AuthModule,
     CustomersModule,
     DictsModule,
@@ -84,6 +87,8 @@ import { ObservabilityModule } from './observability/observability.module';
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
-    consumer.apply(TraceIdMiddleware).forRoutes({ path: '*', method: RequestMethod.ALL });
+    // ponytail: v3.0.3 hardening ticket #3 - CORS allowlist runs first so preflight OPTIONS
+    // short-circuits before any guard / pipe, matching the spec.
+    consumer.apply(CorsMiddleware, TraceIdMiddleware).forRoutes({ path: '*', method: RequestMethod.ALL });
   }
 }

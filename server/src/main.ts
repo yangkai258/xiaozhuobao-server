@@ -13,11 +13,6 @@ async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
   const config = app.get(ConfigService);
   const port = config.getOrThrow<number>('PORT');
-  const origins = config
-    .getOrThrow<string>('CORS_ORIGINS')
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean);
 
   app.setGlobalPrefix('api/v1');
   const bodyLimit = config.get<string>('STORAGE_HTTP_BODY_LIMIT') ?? '15mb';
@@ -26,6 +21,10 @@ async function bootstrap(): Promise<void> {
   // ponytail: v3.0.3 hardening ticket #2 - browser security baseline. CSP allows
   // the SPA to talk to its own /api/v1 origin; everything else is locked to same-origin.
   // frameAncestors 'none' blocks clickjacking embedding. HSTS preload enabled.
+  // ponytail: v3.0.3 hardening ticket #3 - CORS allowlist via Set + 20430 on miss; see
+  // server/src/common/middleware/cors.middleware.ts. Old enableCors() removed so the
+  // middleware is the single source of truth (and handles preflight OPTIONS too).
+
   app.use(
     helmet({
       contentSecurityPolicy: {
@@ -40,7 +39,6 @@ async function bootstrap(): Promise<void> {
       hsts: { maxAge: 31_536_000, includeSubDomains: true, preload: true },
     }),
   );
-  app.enableCors({ origin: origins, credentials: true });
   app.enableShutdownHooks();
 
   const swaggerConfig = new DocumentBuilder()
