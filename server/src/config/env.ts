@@ -6,6 +6,9 @@ const envSchema = z.object({
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
   FEATURE_AI_HOME: z.enum(['true', 'false']).default('false'),
   RATE_LIMIT_AI: z.string().regex(/^[1-9]\d*\/[1-9]\d*(ms|s|m)$/).default('60/60s'),
+  // ponytail: v3.0.3 hardening ticket #1 - global throttler window (seconds) and per-IP request cap.
+  THROTTLE_TTL: z.coerce.number().int().positive().default(60),
+  THROTTLE_LIMIT: z.coerce.number().int().positive().default(100),
   CORS_ORIGINS: z.string().default('http://localhost:5173,http://localhost:3000'),
   DATABASE_URL: z.string().url(),
   REDIS_URL: z.string().url().optional(),

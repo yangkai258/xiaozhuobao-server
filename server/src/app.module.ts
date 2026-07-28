@@ -2,6 +2,7 @@
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { ApiExceptionFilter } from './common/filters/api-exception.filter';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
@@ -10,6 +11,7 @@ import { IdempotencyInterceptor } from './common/interceptors/idempotency.interc
 import { CacheControlInterceptor } from './common/interceptors/cache-control.interceptor';
 import { RequestLogInterceptor } from './common/interceptors/request-log.interceptor';
 import { TraceIdMiddleware } from './common/middleware/trace-id.middleware';
+import { GlobalThrottlerGuard } from './common/throttler/global-throttler.guard';
 import { validateEnvironment } from './config/env';
 import { PrismaModule } from './infra/prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -39,6 +41,18 @@ import { ObservabilityModule } from './observability/observability.module';
         secret: config.getOrThrow<string>('JWT_SECRET'),
       }),
     }),
+    ThrottlerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        throttlers: [
+          {
+            name: 'global',
+            ttl: (config.get<number>('THROTTLE_TTL') ?? 60) * 1000,
+            limit: config.get<number>('THROTTLE_LIMIT') ?? 100,
+          },
+        ],
+      }),
+    }),
     ObservabilityModule,
     PrismaModule,
     AuthModule,
@@ -58,6 +72,7 @@ import { ObservabilityModule } from './observability/observability.module';
     FeatureModule,
   ],
   providers: [
+    { provide: APP_GUARD, useClass: GlobalThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
     { provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },
