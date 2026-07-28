@@ -65,8 +65,14 @@ export class IdempotencyInterceptor implements NestInterceptor {
     }
 
     const key = request.header('Idempotency-Key');
-    if (!key || !uuidV4Pattern.test(key)) {
-      throw new ApiException(40004, '缺少或无效的 Idempotency-Key header', HttpStatus.BAD_REQUEST);
+    // ponytail: v3.0.3 hardening ticket #8 - 40000 for missing header (client-side misconfig),
+    // 40001 for malformed key (length or UUID v4 format). The previous code collapsed both into
+    // 40004 which masked whether the client forgot the header or sent a non-conforming value.
+    if (!key) {
+      throw new ApiException(40000, '缺少 Idempotency-Key header', HttpStatus.BAD_REQUEST);
+    }
+    if (key.length < 8 || !uuidV4Pattern.test(key)) {
+      throw new ApiException(40001, '无效的 Idempotency-Key (需 UUID v4)', HttpStatus.BAD_REQUEST);
     }
 
     const identity: RequestIdentity = {
