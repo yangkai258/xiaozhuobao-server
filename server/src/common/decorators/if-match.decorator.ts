@@ -2,9 +2,15 @@ import { createParamDecorator, ExecutionContext } from '@nestjs/common';
 import { ApiException } from '../filters/api.exception';
 import { ApiRequest } from '../types';
 
+// ponytail: v3.0.3 hardening ticket #10 - 'If-Match: *' returns the literal '*' so the
+// downstream service can pick updateMany without a version: where (no 10009). Numbers are
+// still validated; everything else throws 40002.
+export type IfMatchHeader = number | '*';
+
 export const IfMatchVersion = createParamDecorator(
-  (_data: unknown, context: ExecutionContext): number => {
+  (_data: unknown, context: ExecutionContext): IfMatchHeader => {
     const raw = context.switchToHttp().getRequest<ApiRequest>().header('If-Match');
+    if (raw === '*') return '*';
     const version = raw && /^\d+$/.test(raw) ? Number(raw) : Number.NaN;
     if (!Number.isSafeInteger(version)) {
       // ponytail: v3.0.3 hardening ticket #9 - missing or unparseable If-Match now 40002

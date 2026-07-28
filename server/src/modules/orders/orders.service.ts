@@ -1,6 +1,7 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { OrderStatus, Prisma } from '@prisma/client';
 import { ApiException } from '../../common/filters/api.exception';
+import { IfMatchHeader } from '../../common/decorators/if-match.decorator';
 import { AuthenticatedUser } from '../../common/types';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { MetricsService } from '../../observability/metrics.service';
@@ -200,7 +201,7 @@ export class OrdersService {
 
   async updateStatus(
     identifier: string,
-    version: number,
+    version: IfMatchHeader,
     input: OrderStatusInput,
     user: AuthenticatedUser,
   ): Promise<void> {
@@ -208,7 +209,11 @@ export class OrdersService {
     if (!order) {
       throw new ApiException(10404, `订单 ${identifier} 不存在`, HttpStatus.NOT_FOUND);
     }
-    if (order.version !== version) {
+    // ponytail: v3.0.3 hardening ticket #10 - 'If-Match: *' asks the server to skip the
+    // version fence entirely (last-writer-wins, no 10009). Number values still go through the
+    // exact-match check below.
+    const skipVersion = version === '*';
+    if (!skipVersion && order.version !== version) {
       throw new ApiException(10009, 'version 不匹配，请刷新后重试', HttpStatus.CONFLICT);
     }
     if (!canTransitionOrder(order.status, input.status, user.role, order.createdById === user.id)) {
@@ -217,7 +222,9 @@ export class OrdersService {
 
     await this.prisma.$transaction(async (transaction) => {
       const updated = await transaction.order.updateMany({
-        where: { id: order.id, version, isDeleted: false },
+        where: skipVersion
+          ? { id: order.id, isDeleted: false }
+          : { id: order.id, version: version as number, isDeleted: false },
         data: { status: input.status, version: { increment: 1 } },
       });
       if (updated.count !== 1) {

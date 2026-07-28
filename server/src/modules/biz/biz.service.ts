@@ -6,6 +6,7 @@ import { PrismaService } from '../../infra/prisma/prisma.service';
 import { MetricsService } from '../../observability/metrics.service';
 import { canTransitionBiz } from './biz-state-machine';
 import { BizPayloadByKind, BizQuery, BizStatusInput, BizSummaryQuery, parseBizPayload } from './biz.schemas';
+import { IfMatchHeader } from '../../common/decorators/if-match.decorator';
 
 @Injectable()
 export class BizService {
@@ -68,7 +69,7 @@ export class BizService {
     return created;
   }
 
-  async updateStatus(id: string, version: number, input: BizStatusInput): Promise<unknown> {
+  async updateStatus(id: string, version: IfMatchHeader, input: BizStatusInput): Promise<unknown> {
     const current = await this.prisma.bizSubmission.findFirst({ where: { id, isDeleted: false } });
     if (!current) {
       throw new ApiException(10404, `业务表单 ${id} 不存在`, HttpStatus.NOT_FOUND);
@@ -76,8 +77,14 @@ export class BizService {
     if (!canTransitionBiz(current.status, input.status)) {
       throw new ApiException(10008, '非法状态跃迁', HttpStatus.CONFLICT);
     }
+    // ponytail: v3.0.3 hardening ticket #10 - 'If-Match: *' skips the version fence.
+    if (version !== '*' && current.version !== version) {
+      throw new ApiException(10009, 'version 不匹配，请刷新后重试', HttpStatus.CONFLICT);
+    }
     const updated = await this.prisma.bizSubmission.updateMany({
-      where: { id, version, isDeleted: false },
+      where: version === '*'
+        ? { id, isDeleted: false }
+        : { id, version: version as number, isDeleted: false },
       data: { status: input.status, version: { increment: 1 } },
     });
     if (updated.count !== 1) {

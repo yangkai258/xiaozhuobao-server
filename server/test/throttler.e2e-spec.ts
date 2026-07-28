@@ -25,7 +25,10 @@ describe('Throttler (v3.0.3 #1)', () => {
     process.env.THROTTLE_TTL = '60';
     process.env.THROTTLE_LIMIT = '3';
 
-    const fakePrisma = {} as unknown as PrismaService;
+    // ponytail: ticket #7 - HealthService probes Prisma; give it a fake that answers SELECT 1.
+        const fakePrisma = {
+          $queryRaw: jest.fn().mockResolvedValue(1),
+        } as unknown as PrismaService;
     const { AppModule } = await import('../src/app.module');
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(PrismaService).useValue(fakePrisma)
