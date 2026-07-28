@@ -10,26 +10,32 @@ import { ApiRequest } from '../types';
 // is a deliberate trade-off for an admin tool, not a normal write path).
 export type IfMatchHeader = number | '*';
 
+// ponytail: extracted so unit tests can call the resolver directly without spinning up a
+// NestJS DI container. createParamDecorator() returns a ParameterDecorator which cannot be
+// invoked as a plain function, so the inner logic lives here.
+export function resolveIfMatchHeader(req: ApiRequest): IfMatchHeader {
+  const raw = req.header('If-Match');
+  if (raw === '*') {
+    // ponytail: only ADMIN can use 'If-Match: *' to skip the version fence. Other roles get
+    // the generic role-denied copy so they can't probe the existence of the optimization.
+    if (req.user?.role !== 'ADMIN') {
+      throw new ApiException(20103, 'If-Match: * 仅 ADMIN 角色可用', HttpStatus.FORBIDDEN);
+    }
+    return '*';
+  }
+  const version = raw && /^\d+$/.test(raw) ? Number(raw) : Number.NaN;
+  if (!Number.isSafeInteger(version)) {
+    // ponytail: v3.0.3 hardening ticket #9 - missing or unparseable If-Match now 40002
+    // (v1.1 spec); the older 40004 collided with the Idempotency-Key format error.
+    // ponytail: reviewer follow-up - use HttpStatus.BAD_REQUEST (not the literal 400) so
+    // the value tracks NestJS enum renames and the response envelope is unambiguous.
+    throw new ApiException(40002, '缺少或无效的 If-Match header', HttpStatus.BAD_REQUEST);
+  }
+  return version;
+}
+
 export const IfMatchVersion = createParamDecorator(
   (_data: unknown, context: ExecutionContext): IfMatchHeader => {
-    const req = context.switchToHttp().getRequest<ApiRequest>();
-    const raw = req.header('If-Match');
-    if (raw === '*') {
-      // ponytail: only ADMIN can use 'If-Match: *' to skip the version fence. Other roles get
-      // the generic role-denied copy so they can't probe the existence of the optimization.
-      if (req.user?.role !== 'ADMIN') {
-        throw new ApiException(20103, 'If-Match: * 仅 ADMIN 角色可用', HttpStatus.FORBIDDEN);
-      }
-      return '*';
-    }
-    const version = raw && /^\d+$/.test(raw) ? Number(raw) : Number.NaN;
-    if (!Number.isSafeInteger(version)) {
-      // ponytail: v3.0.3 hardening ticket #9 - missing or unparseable If-Match now 40002
-      // (v1.1 spec); the older 40004 collided with the Idempotency-Key format error.
-      // ponytail: reviewer follow-up - use HttpStatus.BAD_REQUEST (not the literal 400) so
-      // the value tracks NestJS enum renames and the response envelope is unambiguous.
-      throw new ApiException(40002, '缺少或无效的 If-Match header', HttpStatus.BAD_REQUEST);
-    }
-    return version;
+    return resolveIfMatchHeader(context.switchToHttp().getRequest<ApiRequest>());
   },
 );
