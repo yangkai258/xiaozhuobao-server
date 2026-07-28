@@ -23,6 +23,9 @@ describe('validateEnvironment', () => {
 });
 
 describe('validateProduction', () => {
+  // ponytail: reviewer follow-up - production invariants use the full Environment shape so
+  // the test mirrors what the validator sees at startup. Helpers below repeat the env
+  // shape; spreading keeps tests focused on the field they exercise.
   const prodOk = {
     NODE_ENV: 'production' as const,
     PORT: 4000,
@@ -41,6 +44,8 @@ describe('validateProduction', () => {
     STORAGE_LOCAL_DIR: '/data',
     STORAGE_PUBLIC_BASE_URL: '/api/v1/storage/files',
     LOG_SINK: 'stdout' as const,
+    LOKI_BUFFER_MAX: 1000,
+    LOKI_FLUSH_MS: 2000,
     HEALTH_CACHE_TTL_MS: 1000,
   };
 
