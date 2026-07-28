@@ -1,4 +1,4 @@
-import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
+﻿import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../infra/prisma/prisma.service';
 import { RedisService } from '../../infra/redis/redis.service';
@@ -7,6 +7,9 @@ import { RedisService } from '../../infra/redis/redis.service';
 // cache so kubelet / Prometheus don't hammer the DB. Prisma 'SELECT 1' through PrismaService
 // is the same path the API hits; if it's broken, the API is broken. Redis pings only when
 // REDIS_URL is set; without it the service returns ok: 'skipped' so k8s doesn't fail.
+// ponytail: reviewer follow-up - in production, REDIS_URL MUST be set. If NODE_ENV=production
+// and Redis is not enabled, the probe returns 'down' (not 'skipped') and the readiness
+// endpoint throws 503 - this is the unit test signal that the deployment is misconfigured.
 @Injectable()
 export class HealthService {
   private readonly logger = new Logger(HealthService.name);
@@ -46,6 +49,11 @@ export class HealthService {
   }
 
   private async probeRedis(): Promise<string> {
+    if (this.redis.isRequired() && !this.redis.isEnabled()) {
+      // ponytail: production safety - the in-memory Map fallback is dev-only, never ship with
+      // a missing REDIS_URL. Returning 'down' surfaces this in `kubectl describe` immediately.
+      return 'down';
+    }
     if (!this.redis.isEnabled()) return 'skipped';
     try {
       // ponytail: RedisService.set/get are the same code path that handles network
