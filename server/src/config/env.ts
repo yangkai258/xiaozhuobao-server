@@ -18,6 +18,13 @@ const envSchema = z.object({
   STORAGE_DRIVER: z.enum(['local', 'cos', 's3']).default('local'),
   STORAGE_LOCAL_DIR: z.string().default('./storage-data'),
   STORAGE_PUBLIC_BASE_URL: z.string().default('/api/v1/storage/files'),
+  // ponytail: v3.0.3 hardening ticket #6 - structured-logger log sink. 'stdout' (default)
+  // keeps the existing JSON-on-fd-1 contract; 'loki' mirrors every line to a Loki HTTP push.
+  // LOKI_URL is the full /loki/api/v1/push endpoint; LOKI_FLUSH_MS controls the buffer flush
+  // cadence (default 2000ms).
+  LOG_SINK: z.enum(['stdout', 'loki']).default('stdout'),
+  LOKI_URL: z.string().url().optional(),
+  LOKI_FLUSH_MS: z.coerce.number().int().positive().default(2000),
 });
 
 export type Environment = z.infer<typeof envSchema>;
