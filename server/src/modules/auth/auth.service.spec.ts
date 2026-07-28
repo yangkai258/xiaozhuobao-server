@@ -1,4 +1,4 @@
-import { ConfigService } from '@nestjs/config';
+﻿import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Role } from '@prisma/client';
 import { PrismaService } from '../../infra/prisma/prisma.service';
@@ -59,6 +59,8 @@ describe('AuthService', () => {
 
 // ponytail: v3.0.3 hardening ticket #5 - brute-force lock surfaces as code 20105 and
 // emits auth_locked via StructuredLogger. Below 5 failures the counter increments only.
+// Reviewer follow-up: lock check runs AFTER password verification, so a wrong password
+// always returns 20101 (whether the account is locked or not) - no enumeration.
 describe('AuthService brute-force lock', () => {
   const baseUser = {
     id: 'u_002',
@@ -111,13 +113,23 @@ describe('AuthService brute-force lock', () => {
     );
   });
 
-  it('rejects the next login with code 20105 even when the password is correct', async () => {
+  // ponytail: reviewer follow-up - locked + wrong password returns 20101 (generic) so an
+  // attacker cannot enumerate usernames by comparing 20101 vs 20105 response codes.
+  it('returns 20101 (generic) when the password is wrong even if the account is locked', async () => {
     const lockedUntil = new Date(Date.now() + 5 * 60 * 1000);
     const user = { ...baseUser, lockedUntil };
-    // server stores the password hash; for this test we override verifyPassword indirectly
-    // by giving the user a non-matching hash so the failure path matches the user's locked state.
     const { service } = makeService(user);
-    await expect(service.login({ username: 'lockme', password: 'whatever' })).rejects.toMatchObject({ code: 20105 });
+    await expect(service.login({ username: 'lockme', password: 'wrong' })).rejects.toMatchObject({ code: 20101 });
+  });
+
+  // ponytail: reviewer follow-up - locked + correct password reveals 20105 (the only path
+  // the lock state surfaces through).
+  it('returns 20105 when the password is correct and the account is locked', async () => {
+    const real = await hashPassword('Xzb@2026!');
+    const lockedUntil = new Date(Date.now() + 5 * 60 * 1000);
+    const user = { ...baseUser, passwordHash: real, lockedUntil };
+    const { service } = makeService(user);
+    await expect(service.login({ username: 'lockme', password: 'Xzb@2026!' })).rejects.toMatchObject({ code: 20105 });
   });
 
   it('clears the counter and lock state on a successful login', async () => {

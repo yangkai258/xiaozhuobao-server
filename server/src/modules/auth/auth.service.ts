@@ -1,4 +1,4 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+﻿import { HttpStatus, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Prisma } from '@prisma/client';
@@ -43,21 +43,24 @@ export class AuthService {
       select: authUserSelect,
     });
 
-    // ponytail: v3.0.3 hardening ticket #5 - check brute-force lock BEFORE the password so a
-    // locked account surfaces 20105 immediately, regardless of the password the caller sent.
-    if (user && user.lockedUntil && user.lockedUntil > new Date()) {
-      throw new ApiException(20105, '账号已锁定，请 15 分钟后再试', HttpStatus.UNAUTHORIZED);
-    }
+    // ponytail: v3.0.3 hardening ticket #5 + reviewer follow-up - password FIRST, lock check
+    // SECOND. A wrong password always returns 20101 (whether the account is locked or not)
+    // so a caller cannot probe for the existence of a username. The 20105 'account locked'
+    // code only surfaces after a correct password is presented, which carries its own
+    // authentication signal.
     if (!user || !(await verifyPassword(input.password, user.passwordHash))) {
       if (user) {
         const lockedUntil = await this.recordFailedLogin(user);
         if (lockedUntil) {
-          // ponytail: v3.0.3 hardening ticket #5 - emit a structured event the SOC feed can
-          // consume. The 20105 response still surfaces to the client; this is for ops only.
+          // ponytail: emit a structured event the SOC feed can consume. The 20101 response
+          // still surfaces to the client; this is for ops only.
           this.logger.warn({ event: 'auth_locked', username: user.username, lockedUntil: lockedUntil.toISOString() }, AuthService.name);
         }
       }
       throw new ApiException(20101, '用户名或密码错误', HttpStatus.UNAUTHORIZED);
+    }
+    if (user.lockedUntil && user.lockedUntil > new Date()) {
+      throw new ApiException(20105, '账号已锁定，请 15 分钟后再试', HttpStatus.UNAUTHORIZED);
     }
     if (!user.isActive) {
       throw new ApiException(20102, '账号已禁用', HttpStatus.UNAUTHORIZED);
