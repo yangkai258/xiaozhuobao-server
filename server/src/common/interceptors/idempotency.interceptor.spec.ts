@@ -2,6 +2,20 @@ import { createHash } from 'node:crypto';
 import { firstValueFrom, of, throwError } from 'rxjs';
 import { Prisma } from '@prisma/client';
 import { IdempotencyInterceptor } from './idempotency.interceptor';
+import { RedisService } from '../../infra/redis/redis.service';
+
+function makeRedis(): RedisService {
+  return {
+    isEnabled: () => false,
+    tryAcquireIdempotencyLock: async () => true,
+    releaseIdempotencyLock: async () => undefined,
+    get: async () => null,
+    set: async () => undefined,
+    del: async () => undefined,
+    incr: async () => 1,
+    assertRateLimit: async () => undefined,
+  } as unknown as RedisService;
+}
 
 function p2002(): Prisma.PrismaClientKnownRequestError {
   return new Prisma.PrismaClientKnownRequestError('unique violation', { code: 'P2002', clientVersion: 'test' });
@@ -77,7 +91,7 @@ describe('IdempotencyInterceptor', () => {
         deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
     };
-    const interceptor = new IdempotencyInterceptor(prisma as never, { recordIdempotencyReplay: jest.fn() } as never);
+    const interceptor = new IdempotencyInterceptor(prisma as never, makeRedis(), { recordIdempotencyReplay: jest.fn() } as never);
     const res = makeRes();
 
     const next1 = { handle: jest.fn(() => of({ ok: true, n: 1 })) };
@@ -119,7 +133,7 @@ describe('IdempotencyInterceptor', () => {
         deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
     };
-    const interceptor = new IdempotencyInterceptor(prisma as never, { recordIdempotencyReplay: jest.fn() } as never);
+    const interceptor = new IdempotencyInterceptor(prisma as never, makeRedis(), { recordIdempotencyReplay: jest.fn() } as never);
     const res = makeRes();
     const next = { handle: jest.fn(() => of({ shouldNotRun: true })) };
 
@@ -139,7 +153,7 @@ describe('IdempotencyInterceptor', () => {
         deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
     };
-    const interceptor = new IdempotencyInterceptor(prisma as never, { recordIdempotencyReplay: jest.fn() } as never);
+    const interceptor = new IdempotencyInterceptor(prisma as never, makeRedis(), { recordIdempotencyReplay: jest.fn() } as never);
     const res = makeRes();
     res.statusCode = 500;
     const next = { handle: () => throwError(() => new Error('downstream boom')) };

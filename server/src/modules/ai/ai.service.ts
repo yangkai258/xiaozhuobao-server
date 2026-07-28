@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
 import { ApiException } from '../../common/filters/api.exception';
 import { StructuredLogger } from '../../common/logger/structured-logger';
+import { RedisService } from '../../infra/redis/redis.service';
 import { FeatureService } from '../feature/feature.service';
 import {
   AiModuleId,
@@ -47,13 +48,13 @@ function parseRateLimit(value: string | undefined): { maxCalls: number; windowMs
 @Injectable()
 export class AiService {
   private readonly historyByUser = new Map<string, AiHistoryItem[]>();
-  private readonly callsByUser = new Map<string, number[]>();
   private readonly rateLimitMaxCalls: number;
   private readonly rateLimitWindowMs: number;
 
   constructor(
     config: ConfigService,
     private readonly features: FeatureService,
+    private readonly redis: RedisService,
     private readonly logger: StructuredLogger,
   ) {
     const rateLimit = parseRateLimit(config.get<string>('RATE_LIMIT_AI'));
@@ -63,12 +64,13 @@ export class AiService {
 
   listModules(): readonly unknown[] { return modules; }
 
-  invoke(module: AiModuleId, input: InvokeAiInput, userId: string): InvokeResponse {
+  async invoke(module: AiModuleId, input: InvokeAiInput, userId: string): Promise<InvokeResponse> {
     const startedAt = Date.now();
     this.logger.log({ event: 'ai_invoke_started', module, attachmentsCount: input.attachments?.length ?? 0, intentHints: input.intentHints ?? [] }, 'ai');
     try {
       this.assertFeatureEnabled();
-      this.assertRateLimit(userId);
+      // ponytail: v3.0.3 ticket #4 - rate limit is centralised on RedisService (or its in-process fallback).
+      await this.redis.assertRateLimit('ai', userId, module, this.rateLimitMaxCalls, this.rateLimitWindowMs);
       const multimodal = (input.attachments?.length ?? 0) > 0;
       const response = multimodal
         ? this.multimodalResponse(input.attachments ?? [], input.prompt)
@@ -96,15 +98,6 @@ export class AiService {
     if (!this.features.isEnabled('AI_HOME')) throw new ApiException(50502, 'AI 对话首页功能未开启', HttpStatus.FORBIDDEN);
   }
 
-  // ponytail: phase-one limiting is per process; move counters to Redis before horizontal scaling.
-  private assertRateLimit(userId: string): void {
-    const now = Date.now();
-    const cutoff = now - this.rateLimitWindowMs;
-    const calls = (this.callsByUser.get(userId) ?? []).filter((ts) => ts > cutoff);
-    if (calls.length >= this.rateLimitMaxCalls) throw new ApiException(20429, 'AI 调用过于频繁，请稍后再试', HttpStatus.TOO_MANY_REQUESTS);
-    calls.push(now);
-    this.callsByUser.set(userId, calls);
-  }
 
   // ponytail: phase one fixture — all 5 tool-call types reachable, multimodal forces a customer_qualification + kb_reply pair.
   private multimodalResponse(attachments: Attachment[], prompt: string): InvokeResponse {

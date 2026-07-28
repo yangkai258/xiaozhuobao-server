@@ -10,6 +10,7 @@ import { Response } from 'express';
 import { firstValueFrom, from, Observable } from 'rxjs';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../infra/prisma/prisma.service';
+import { RedisService } from '../../infra/redis/redis.service';
 import { MetricsService } from '../../observability/metrics.service';
 import { ApiException } from '../filters/api.exception';
 import { ApiRequest } from '../types';
@@ -53,6 +54,7 @@ export class IdempotencyInterceptor implements NestInterceptor {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly redis: RedisService,
     private readonly metrics: MetricsService,
   ) {}
 
@@ -83,6 +85,22 @@ export class IdempotencyInterceptor implements NestInterceptor {
     response: Response,
     next: CallHandler,
   ): Promise<unknown> {
+    // ponytail: v3.0.3 hardening ticket #4 - Redis fast-path. When REDIS_URL is set, this is the
+    // single source of cross-process contention. The Prisma P2002 sentinel underneath remains
+    // as a fail-safe for the case where Redis is briefly unreachable.
+    if (this.redis.isEnabled()) {
+      const acquired = await this.redis.tryAcquireIdempotencyLock(key, TTL_MS);
+      if (!acquired) {
+        const stored = await this.waitForStoredResult(key);
+        if (stored) {
+          this.assertSameRequest(identity, stored);
+          response.status(stored.statusCode).setHeader('Idempotent-Replay', 'true');
+          this.recordReplay(identity.path);
+          return stored.responseBody;
+        }
+        throw new ApiException(50301, '幂等锁等待超时', HttpStatus.SERVICE_UNAVAILABLE);
+      }
+    }
     const existing = await this.prisma.idempotencyRecord.findUnique({ where: { key } });
     if (existing && existing.expiresAt > new Date() && existing.statusCode !== PENDING_SENTINEL) {
       this.assertSameRequest(identity, existing);
@@ -157,7 +175,23 @@ export class IdempotencyInterceptor implements NestInterceptor {
         .deleteMany({ where: { key, statusCode: PENDING_SENTINEL } })
         .catch(() => undefined);
       throw e;
+    } finally {
+      // ponytail: ticket #4 - free the cross-process lock so retries can take over.
+      if (this.redis.isEnabled()) await this.redis.releaseIdempotencyLock(key).catch(() => undefined);
     }
+  }
+
+  // ponytail: 50ms x 100 ~= 5s; polls the Prisma record while a peer process owns the Redis lock.
+  private async waitForStoredResult(key: string): Promise<StoredRecord | null> {
+    for (let i = 0; i < 100; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      // eslint-disable-next-line no-await-in-loop
+      const record = await this.prisma.idempotencyRecord.findUnique({ where: { key } });
+      if (record && record.statusCode !== PENDING_SENTINEL && record.expiresAt > new Date()) {
+        return record;
+      }
+    }
+    return null;
   }
 
   // ponytail: 50ms x 100 ~= 5s 上限；慢下游/跨区换 listen/notify 或 Redis pub/sub
