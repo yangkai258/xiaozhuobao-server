@@ -1,12 +1,16 @@
-import { HttpStatus, Inject, Injectable, Logger } from '@nestjs/common';
+﻿import { HttpStatus, Inject, Injectable, Logger } from '@nestjs/common';
 import Redis from 'ioredis';
 import { ApiException } from '../../common/filters/api.exception';
-import { REDIS_CLIENT, REDIS_ENABLED } from './redis.constants';
+import { REDIS_CLIENT, REDIS_ENABLED, REDIS_REQUIRED } from './redis.constants';
 
 // ponytail: v3.0.3 hardening ticket #4 - thin wrapper over ioredis. When REDIS_URL is unset
 // (single-node dev) it falls back to an in-process Map with the same surface, so callers
 // never branch on which mode is active. assertRateLimit and assertIdempotencyInWindow are
 // the two helpers idempotency.interceptor.ts and ai.service.ts reach for.
+// ponytail: reviewer follow-up - production MUST use Redis. When NODE_ENV=production and
+// REDIS_URL is missing, every public method throws 50301 'Redis required in production';
+// the in-memory Map is dev-only. This prevents a misconfigured deployment from silently
+// running on a non-shared, non-durable cache.
 @Injectable()
 export class RedisService {
   private readonly logger = new Logger(RedisService.name);
@@ -15,11 +19,20 @@ export class RedisService {
   constructor(
     @Inject(REDIS_CLIENT) private readonly client: Redis | null,
     @Inject(REDIS_ENABLED) private readonly enabled: boolean,
+    @Inject(REDIS_REQUIRED) private readonly required: boolean,
   ) {}
 
   isEnabled(): boolean { return this.enabled; }
+  isRequired(): boolean { return this.required; }
+
+  private ensureAvailable(): void {
+    if (this.required && !this.enabled) {
+      throw new ApiException(50301, 'Redis 在生产环境为必需依赖，未配置 REDIS_URL', HttpStatus.SERVICE_UNAVAILABLE);
+    }
+  }
 
   async get(key: string): Promise<string | null> {
+    this.ensureAvailable();
     if (this.enabled && this.client) {
       try { return await this.client.get(key); } catch (err) { this.logger.warn('redis get failed: ' + (err as Error).message); }
     }
@@ -33,6 +46,7 @@ export class RedisService {
   }
 
   async set(key: string, value: string, ttlMs?: number): Promise<void> {
+    this.ensureAvailable();
     if (this.enabled && this.client) {
       try {
         if (ttlMs) await this.client.set(key, value, 'PX', ttlMs);
@@ -44,6 +58,7 @@ export class RedisService {
   }
 
   async del(key: string): Promise<void> {
+    this.ensureAvailable();
     if (this.enabled && this.client) {
       try { await this.client.del(key); return; } catch (err) { this.logger.warn('redis del failed: ' + (err as Error).message); }
     }
@@ -51,6 +66,7 @@ export class RedisService {
   }
 
   async incr(key: string, ttlMs?: number): Promise<number> {
+    this.ensureAvailable();
     if (this.enabled && this.client) {
       try {
         const value = await this.client.incr(key);
@@ -72,6 +88,7 @@ export class RedisService {
   // ponytail: ticket #4 - per-user, per-route sliding-window rate limit. Uses INCR + EXPIRE on
   // the first hit, so 2 processes sharing Redis see the same counter and reject fairly.
   async assertRateLimit(scope: string, userId: string, route: string, limit: number, windowMs: number): Promise<void> {
+    this.ensureAvailable();
     const key = `rl:${scope}:${userId}:${route}`;
     const count = await this.incr(key, windowMs);
     if (count > limit) {
@@ -82,6 +99,7 @@ export class RedisService {
   // ponytail: ticket #4 - SET NX with TTL. Returns true when this caller acquired the lock
   // and is the one to run downstream; false when another caller already owns it.
   async tryAcquireIdempotencyLock(key: string, ttlMs: number): Promise<boolean> {
+    this.ensureAvailable();
     if (this.enabled && this.client) {
       try {
         const ok = await this.client.set(`idem:${key}`, '1', 'PX', ttlMs, 'NX');
