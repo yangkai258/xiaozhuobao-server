@@ -1,4 +1,4 @@
-import { Injectable, LoggerService, LogLevel } from '@nestjs/common';
+﻿import { Injectable, LoggerService, LogLevel } from '@nestjs/common';
 import { context as otelContext, isSpanContextValid, trace } from '@opentelemetry/api';
 // ponytail: v3.0.3 hardening ticket #6 - OTel logs are dynamically imported so this file still
 // loads when only the api-logs package isn't installed (single-edge deployments).
@@ -106,9 +106,14 @@ export class StructuredLogger implements LoggerService {
   // continues to write JSON to fd 1; loki buffers and POSTs via fetch every flushBatchMs or when the
   // buffer hits 50 lines. The two channels coexist; structured stdout is always on so tail/log
   // still works when Loki is reachable.
+  // ponytail: reviewer follow-up - LOKI_BUFFER_MAX caps the in-memory buffer so a sustained
+  // Loki outage cannot OOM the process. When the buffer is full the OLDEST line is dropped
+  // (drop-oldest: trace history is less valuable than recent tail visibility). Defaults to
+  // 1000 entries; tunable via LOKI_BUFFER_MAX.
   private readonly otelLogger: OtelLogger | null = null;
   private readonly lokiBuffer: string[] = [];
   private readonly lokiUrl: string | null = process.env.LOG_SINK === 'loki' ? (process.env.LOKI_URL ?? '') : null;
+  private readonly lokiBufferMax: number = Number(process.env.LOKI_BUFFER_MAX ?? 1000);
   private readonly lokiInterval: NodeJS.Timeout | null = this.lokiUrl ? setInterval(() => this.flushLokiNow(), Number(process.env.LOKI_FLUSH_MS ?? 2000)) : null;
   constructor() {
     try {
@@ -146,8 +151,18 @@ export class StructuredLogger implements LoggerService {
   private flushToLoki(record: LogRecord): void {
     if (!this.lokiUrl) return;
     const line = JSON.stringify(record);
-    this.lokiBuffer.push(line);
+    this.pushLokiLine(line);
     if (this.lokiBuffer.length >= 50) this.flushLokiNow();
+  }
+
+  // ponytail: single insertion point - both fresh lines and retry-restore go through this so
+  // the cap is enforced uniformly. drop-oldest pops the head; structured stdout remains
+  // authoritative so an op tailing the container still sees every line.
+  private pushLokiLine(line: string): void {
+    if (this.lokiBuffer.length >= this.lokiBufferMax) {
+      this.lokiBuffer.shift();
+    }
+    this.lokiBuffer.push(line);
   }
 
   private flushLokiNow(): void {
@@ -159,7 +174,9 @@ export class StructuredLogger implements LoggerService {
     const body = JSON.stringify({ streams: [stream] });
     fetch(this.lokiUrl, { method: 'POST', headers: { 'content-type': 'application/json' }, body }).catch(() => {
       // ponytail: drop on the floor if Loki is down - stdout JSON is still authoritative for ops.
-      this.lokiBuffer.unshift(...lines);
+      // Push back through the cap so the buffer can never exceed lokiBufferMax even after a
+      // long-down flush.
+      for (const line of lines) this.pushLokiLine(line);
     });
   }
 
