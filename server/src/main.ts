@@ -3,6 +3,7 @@
 import './tracing';
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
+import helmet from 'helmet';
 import { json, urlencoded } from 'express';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
@@ -22,6 +23,23 @@ async function bootstrap(): Promise<void> {
   const bodyLimit = config.get<string>('STORAGE_HTTP_BODY_LIMIT') ?? '15mb';
   app.use(json({ limit: bodyLimit }));
   app.use(urlencoded({ limit: bodyLimit, extended: false }));
+  // ponytail: v3.0.3 hardening ticket #2 - browser security baseline. CSP allows
+  // the SPA to talk to its own /api/v1 origin; everything else is locked to same-origin.
+  // frameAncestors 'none' blocks clickjacking embedding. HSTS preload enabled.
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'"],
+          imgSrc: ["'self'", 'data:', 'https:'],
+          connectSrc: ["'self'"],
+          frameAncestors: ["'none'"],
+        },
+      },
+      hsts: { maxAge: 31_536_000, includeSubDomains: true, preload: true },
+    }),
+  );
   app.enableCors({ origin: origins, credentials: true });
   app.enableShutdownHooks();
 
