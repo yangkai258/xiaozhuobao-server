@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue';
 import IconBox from '../../components/IconBox/IconBox.vue';
 import { api_biz } from '../../api/client';
+import { useSubmit } from '../../composables/useSubmit';
 import { useInfoStore } from '../../stores';
 
 const status = ref('DRAFT');
@@ -108,14 +109,11 @@ async function onSubmit() {
   if (form.value.eta) payload.expectedDate = form.value.eta;
   const confirm = await new Promise<boolean>(r => uni.showModal({ title: '确认提交 紧急备货申请?', success: s => r(s.confirm) }));
   if (!confirm) return;
-  try {
-    await api_biz.create('STOCKING', payload);
+  await run(async () => { await api_biz.create('STOCKING', payload);
     status.value = 'SUBMITTED';
     uni.showToast({ title: '已提交审批', icon: 'success' });
     setTimeout(() => uni.navigateBack(), 800);
-  } catch (e: any) {
-    uni.showToast({ title: e?.msg || '提交失败', icon: 'none' });
-  }
+return true; });
 }
 
 function onSave() {

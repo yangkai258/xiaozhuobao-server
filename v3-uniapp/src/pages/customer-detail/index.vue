@@ -3,6 +3,8 @@ import { ref, onMounted } from 'vue';
 import IconBox from '../../components/IconBox/IconBox.vue';
 import StatusTag from '../../components/StatusTag/StatusTag.vue';
 import { api_customers } from '../../api/client';
+import { useSubmit } from '../../composables/useSubmit';
+import { useRetry } from '../../composables/useRetry';
 import { formatCents } from '../../utils/amount';
 
 type RecentOrder = { id: string; no: string; amtCents: string; status: string; orderDate: string };
@@ -21,19 +23,9 @@ type CustomerDetail = {
 };
 
 const detail = ref<CustomerDetail | null>(null);
+const { loading, error, reload: retry } = useRetry();
 
-onMounted(async () => {
-  const pages = (typeof getCurrentPages === 'function' ? getCurrentPages() : []) as Array<{ options?: Record<string, string> }>;
-  const opts = pages.at(-1)?.options ?? {};
-  const id = opts.bp || opts.id || '';
-  if (!id) return;
-  try {
-    const r = await api_customers.byId(id);
-    detail.value = r.data as CustomerDetail;
-  } catch {
-    // ponytail: customer not found or auth failed; page renders empty state
-  }
-});
+onMounted(async () => { const pages = (typeof getCurrentPages === 'function' ? getCurrentPages() : []) as Array<{ options?: Record<string, string> }>; const id = pages.at(-1)?.options?.bp || pages.at(-1)?.options?.id || ''; if (!id) return; const r = await retry(() => api_customers.byId(id).then(res => res.data as CustomerDetail)); if (r) detail.value = r; });
 
 function avatar(): string {
   const n = detail.value?.name || '?';

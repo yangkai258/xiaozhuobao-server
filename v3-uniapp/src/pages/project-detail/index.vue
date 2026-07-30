@@ -7,12 +7,12 @@ import { formatCents } from "../../utils/amount";
 
 type ProjectDetail = { id: string; no: string; name: string; customerId: string; customerName: string; status: string; amtCents: string; version: number; createdAt: string; updatedAt: string };
 const detail = ref<ProjectDetail | null>(null);
-const loading = ref(true);
+const { loading, error, run: loadOne } = useRetry();
 onMounted(async () => {
   const pages = (typeof getCurrentPages === "function" ? getCurrentPages() : []) as Array<{ options?: Record<string, string> }>;
   const id = pages.at(-1)?.options?.id || pages.at(-1)?.options?.no || "";
   if (!id) { loading.value = false; return; }
-  try { const r = await api_projects.byId(id); detail.value = r.data as ProjectDetail; } catch { /* empty state */ } finally { loading.value = false; }
+  const r = await loadOne(() => api_projects.byId(id).then(res => res.data as ProjectDetail)); if (r) detail.value = r;
 });
 </script>
 
@@ -23,8 +23,9 @@ onMounted(async () => {
       <view class="back" @click="uni.navigateBack()"><text>&lt;</text></view>
       <text class="title">项目详情</text>
     </view>
-    <view v-if="loading" class="loading"><text>项目档案加载中...</text></view>
-    <view v-else-if="!detail" class="loading"><text>项目不存在或已删除</text></view>
+    <view v-if="loading"><text>项目档案加载中...</text></view>
+    <view v-else-if="error"><text>{{ error }}</text><view @click="retryLoad">重试</view></view>
+    <view v-else-if="!detail"><text>项目不存在或已删除</text></view>
     <view v-else>
       <view class="dossier-cover" style="--mark-color: var(--c-warn)">
         <view class="cover-cust-row">

@@ -6,7 +6,7 @@ import { formatCents } from "../../utils/amount";
 
 type ProductDetail = { id: string; no: string; name: string; spec: string; cat: string; stock: number; reservedQty: number; priceCents: string; unit: string; isActive: boolean; version: number; updatedAt: string };
 const detail = ref<ProductDetail | null>(null);
-const loading = ref(true);
+const { loading, error, run: loadOne } = useRetry();
 const available = computed(() => {
   if (!detail.value) return 0;
   return Math.max(0, detail.value.stock - detail.value.reservedQty);
@@ -15,7 +15,7 @@ onMounted(async () => {
   const pages = (typeof getCurrentPages === "function" ? getCurrentPages() : []) as Array<{ options?: Record<string, string> }>;
   const id = pages.at(-1)?.options?.id || pages.at(-1)?.options?.no || "";
   if (!id) { loading.value = false; return; }
-  try { const r = await api_products.byId(id); const d = r.data as ProductDetail; detail.value = { ...d, price: Number(d.priceCents) / 100 }; } catch { /* empty state */ } finally { loading.value = false; }
+  const r = await loadOne(() => api_products.byId(id).then(res => res.data as ProductDetail)); if (r) detail.value = r;
 });
 </script>
 
@@ -26,8 +26,9 @@ onMounted(async () => {
       <view class="back" @click="uni.navigateBack()"><text>&lt;</text></view>
       <text class="title">商品详情</text>
     </view>
-    <view v-if="loading" class="loading"><text>商品档案加载中...</text></view>
-    <view v-else-if="!detail" class="loading"><text>商品不存在或已下架</text></view>
+    <view v-if="loading"><text>商品档案加载中...</text></view>
+    <view v-else-if="error"><text>{{ error }}</text><view @click="retryLoad">重试</view></view>
+    <view v-else-if="!detail"><text>商品不存在或已下架</text></view>
     <view v-else>
       <view class="dossier-cover" style="--mark-color: var(--c-green)">
         <view class="cover-cust-row">

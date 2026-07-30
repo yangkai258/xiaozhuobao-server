@@ -7,8 +7,8 @@ import { formatCents } from '../../utils/amount';
 import { useInfoStore } from '../../stores';
 import IconBox from '../../components/IconBox/IconBox.vue';
 import { api_biz } from '../../api/client';
+import { useSubmit } from '../../composables/useSubmit';
 
-// ponytail: shipment UI status maps to backend BizStatus DRAFT/PENDING/APPROVED/CLOSED/REJECTED.
 const SHIPMENT_TO_BIZ: Record<ShipmentStatus, 'DRAFT' | 'PENDING' | 'APPROVED' | 'CLOSED' | 'REJECTED'> = { DRAFT: 'DRAFT', SUBMITTED: 'PENDING', DISPATCHED: 'APPROVED', DELIVERED: 'CLOSED', CANCELED: 'REJECTED' };
 
 const status = ref<ShipmentStatus>('DRAFT');
@@ -16,23 +16,14 @@ const bizId = ref('');
 const infoStore = useInfoStore();
 const customerId = ref('');
 const productId = ref('');
+const { submitting, run } = useSubmit();
 onMounted(() => { void infoStore.load().then(() => { customerId.value = infoStore.customers[0]?.id || ''; productId.value = infoStore.products[0]?.id || ''; }); });
 const role = ref<'SALES' | 'FINANCE' | 'REGION_MGR' | 'ADMIN' | 'CS'>('SALES');
 
 const form = ref({
-  customer: '上海建工建材有限公司',
-  contact: '张工 · 15938000123',
-  addr: '上海浦东新区张江高科园区蔡伦路 88 号',
-  product: 'JS 聚合物防水涂料 18kg',
-  qty: '15',
-  unit: '桶',
-  productPriceCents: '33800',
-  expectedDate: '2026-07-22',
-  reason: '客户紧急补货 / 项目工期紧',
-  note: '请联系工地张工确认收货时间',
+  customer: '', contact: '', addr: '', product: '', qty: '1', unit: '桶', productPriceCents: '0', expectedDate: '', reason: '', note: ''
 });
-
-const reasons = ['客户紧急补货 / 项目工期紧', '物料替代 / 短缺', '临时变更', '其他 (备注)'];
+const reasons = ['', '临时变更', '其他 (备注)'];
 
 const steps = ['DRAFT', 'SUBMITTED', 'DISPATCHED', 'DELIVERED'] as const;
 const stepLabels = ['草稿', '已提交', '已发货', '已签收'];
@@ -45,12 +36,12 @@ const nextActions = computed(() =>
     key: status.value + '->' + to,
     allowed: (SHIPMENT_TRANSITION_ROLES[status.value + '->' + to] ?? []).includes(role.value),
     label: ({
-      'DRAFT->SUBMITTED':      '提交审批',
-      'DRAFT->CANCELED':       '取消',
+      'DRAFT->SUBMITTED': '提交审批',
+      'DRAFT->CANCELED': '取消',
       'SUBMITTED->DISPATCHED': '确认发货',
-      'SUBMITTED->CANCELED':   '撤回',
+      'SUBMITTED->CANCELED': '撤回',
       'DISPATCHED->DELIVERED': '客户已签收',
-      'DISPATCHED->CANCELED':  '拦截作废',
+      'DISPATCHED->CANCELED': '拦截作废',
     } as Record<string, string>)[status.value + '->' + to] || (status.value + '->' + to),
     accent: !to.endsWith('CANCELED'),
     danger: to.endsWith('CANCELED'),
@@ -58,11 +49,8 @@ const nextActions = computed(() =>
 );
 
 async function onAction(act: any) {
-  if (!act.allowed) {
-    uni.showToast({ title: '当前角色无此操作权限', icon: 'none' });
-    return;
-  }
-  const confirm = await new Promise<boolean>(r => uni.showModal({ title: '确认' + act.label, content: '状态将从 ' + status.value + ' 变更为 ' + act.target, success: s => r(s.confirm) }));
+  if (!act.allowed) { uni.showToast({ title: '当前角色无此操作权限', icon: 'none' }); return; }
+  const confirm = await new Promise<boolean>(r => uni.showModal({ title: '确认' + act.label, content: '状态将变更', success: s => r(s.confirm) }));
   if (!confirm) return;
   if (act.key === 'DRAFT->SUBMITTED') {
     if (!customerId.value || !productId.value) { uni.showToast({ title: '客户/商品未加载', icon: 'none' }); return; }
@@ -75,30 +63,21 @@ async function onAction(act: any) {
       plannedDate: form.value.expectedDate,
       remark: form.value.note,
     };
-    try {
-      const res = await api_biz.create('SHIPMENT', payload);
-      bizId.value = res.data?.id || '';
-      status.value = act.target;
-      uni.showToast({ title: '已提交', icon: 'success' });
-    } catch (e: any) {
-      uni.showToast({ title: e?.msg || '提交失败', icon: 'none' });
-    }
+    const ok = await run(async () => { await api_biz.create('SHIPMENT', payload); return true; });
+    if (ok) { status.value = act.to; uni.showToast({ title: '已提交', icon: 'success' }); }
     return;
   }
   if (!bizId.value) { uni.showToast({ title: '请先提交', icon: 'none' }); return; }
-  try {
+  const ok2 = await run(async () => {
     const cur = await api_biz.byId(bizId.value);
     const target = SHIPMENT_TO_BIZ[act.to as ShipmentStatus];
     await api_biz.updateStatus(bizId.value, target, (cur.data as any).version, act.to === 'CANCELED' ? '发货撤回' : undefined);
-    status.value = act.to;
-    uni.showToast({ title: '状态已更新', icon: 'success' });
-  } catch (e: any) {
-    uni.showToast({ title: e?.msg || (e?.code === 10009 ? '状态已被他人修改，请刷新' : '操作失败'), icon: 'none' });
+    return true;
+  });
+  if (ok2) { status.value = act.to; uni.showToast({ title: '状态已更新', icon: 'success' }); }
 }
 
-function onSave() {
-  uni.showToast({ title: '草稿已保存到本地', icon: 'success' });
-}
+function onSave() { uni.showToast({ title: '草稿已保存到本地', icon: 'success' }); }
 
 const totalCents = computed(() => {
   const cents = parseInt(form.value.productPriceCents, 10) || 0;

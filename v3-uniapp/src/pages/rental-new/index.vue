@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue';
 import IconBox from '../../components/IconBox/IconBox.vue';
 import { api_biz } from '../../api/client';
+import { useSubmit } from '../../composables/useSubmit';
 import { useInfoStore } from '../../stores';
 
 const status = ref('DRAFT');
@@ -117,14 +118,11 @@ async function onSubmit() {
   if (form.value.note) payload.remark = form.value.site + ' / ' + form.value.contact;
   const confirm = await new Promise<boolean>(r => uni.showModal({ title: '确认提交 设备租赁申请?', content: '提交后将进入审批流程', success: s => r(s.confirm) }));
   if (!confirm) return;
-  try {
-    await api_biz.create('RENTAL', payload);
+  await run(async () => { await api_biz.create('RENTAL', payload);
     status.value = 'SUBMITTED';
     uni.showToast({ title: '已提交审批', icon: 'success' });
     setTimeout(() => uni.navigateBack(), 800);
-  } catch (e: any) {
-    uni.showToast({ title: e?.msg || '提交失败', icon: 'none' });
-  }
+return true; });
 }
 
 function onSave() {

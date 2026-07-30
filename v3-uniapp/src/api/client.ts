@@ -3,9 +3,13 @@ import {
   BIZ,
 } from '../mock/data';
 import { BizError, friendlyMessage } from '../utils/error';
+import { formatCents } from '../utils/amount';
 
 // uni-app H5 reads Vite env at build time; falls back to local dev server
-const BASE = ((((import.meta as any).env || {}).VITE_API_BASE_URL as string) || 'http://localhost:4000') + '/api/v1';
+const RAW_BASE = ((import.meta as any).env?.VITE_API_BASE_URL as string | undefined) ?? '';
+const BASE = RAW_BASE === '' || RAW_BASE === '/'
+  ? '/api/v1'
+  : RAW_BASE.replace(/\/$/, '').replace(/\/api\/v1$/, '') + '/api/v1';
 const TOKEN_KEY = 'xzb_access_token';
 const REFRESH_KEY = 'xzb_refresh_token';
 
@@ -153,7 +157,7 @@ export const api_customers = {
 export const api_products = {
   list: async () => {
     const result = await request<any>('/products?page=1&size=100');
-    return { ...result, data: { ...result.data, items: result.data.items.map((p: any) => ({ ...p, price: Number(p.priceCents) / 100 })) } };
+    return { ...result, data: { ...result.data, items: result.data.items.map((p: any) => ({ ...p, price: formatCents(p.priceCents) })) } };
   },
   byId: (id: string) => request<any>(`/products/${encodeURIComponent(id)}`),
 };
@@ -161,7 +165,7 @@ export const api_products = {
 export const api_orders = {
   list: async () => {
     const result = await request<any>('/orders?page=1&size=100');
-    return { ...result, data: { ...result.data, items: result.data.items.map((o: any) => ({ no: o.no, cust: o.customerName, amt: Number(o.amtCents) / 100, status: o.status, qty: o.qty, date: o.orderDate })) } };
+    return { ...result, data: { ...result.data, items: result.data.items.map((o: any) => ({ no: o.no, cust: o.customerName, amt: formatCents(o.amtCents), amtCents: o.amtCents, status: o.status, qty: o.qty, date: o.orderDate })) } };
   },
   byId: (id: string) => request<any>(`/orders/${encodeURIComponent(id)}`),
   // PATCH /orders/:id/status — If-Match is the order's current version; server returns 10009 on mismatch
@@ -236,10 +240,8 @@ export const api_workbench = {
           const pending = row?.byStatus?.PENDING ?? 0;
           return { ...b, count: String(total), pending: String(pending) };
         }),
-        todos: todos.data.items.map((t: any) => ({ h: t.title, sub: t.subtitle || '', node: t.node, due: t.dueAt ? t.dueAt.slice(0, 10) : t.status })),
-        amt: Number(report.data.gmvCents) / 100,
-        delta: 0,
-        amtWeek: report.data.byWeek.reduce((sum: number, item: any) => sum + Number(item.gmvCents) / 100, 0),
+        todos: todos.data.items.map((t: any) => ({ h: t.title, sub: t.subtitle || '', node: t.node, due: t.dueAt ? t.dueAt.slice(0, 10) : t.status })),
+        delta: 0,
         gmvCents: report.data.gmvCents,
         orderCount: report.data.orderCount,
         aftersaleCount: report.data.aftersaleCount,

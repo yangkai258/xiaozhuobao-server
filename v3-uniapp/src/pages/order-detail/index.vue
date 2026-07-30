@@ -5,6 +5,9 @@ import { formatCents, addCents } from '../../utils/amount';
 import IconBox from '../../components/IconBox/IconBox.vue';
 import StatusTag from '../../components/StatusTag/StatusTag.vue';
 import { api_orders } from '../../api/client';
+import { useSubmit } from '../../composables/useSubmit';
+import { isVersionConflict, BizError } from '../../utils/error';
+import { useRetry } from '../../composables/useRetry';
 
 type OrderItem = { productName: string; spec: string; qty: number; unit: string; priceCents: string };
 type OrderLog = { id: string; action: string; actor: string; at: string; remark: string | null };
@@ -24,22 +27,18 @@ type OrderDetail = {
 
 const detail = ref<OrderDetail | null>(null);
 const status = ref<OrderStatus>('DRAFT');
+const { loading, error, run: loadDetail } = useRetry();
+const { submitting, run: submit } = useSubmit();
+async function pull(opts={}){
+  const pages = (typeof getCurrentPages === 'function' ? getCurrentPages() : []) as Array<{ options?: Record<string, string> }>;
+  const no = pages.at(-1)?.options?.no || '';
+  if (!no) { error.value = '订单编号缺失'; return; }
+  const r = await loadDetail(() => api_orders.byId(no));
+  if (r) { detail.value = r.data as OrderDetail; status.value = ((r.data as OrderDetail).statusCode as OrderStatus) || 'DRAFT'; }
+}
 const role = ref<'SALES' | 'FINANCE' | 'REGION_MGR' | 'ADMIN' | 'CS'>('SALES');
 
-onMounted(async () => {
-  const pages = (typeof getCurrentPages === 'function' ? getCurrentPages() : []) as Array<{ options?: Record<string, string> }>;
-  const opts = pages.at(-1)?.options ?? {};
-  const no = opts.no || '';
-  if (!no) return;
-  try {
-    const r = await api_orders.byId(no);
-    const d = r.data as OrderDetail;
-    detail.value = d;
-    status.value = (d.statusCode as OrderStatus) || 'DRAFT';
-  } catch (err) {
-    // ponytail: order not found or auth failed; leave detail null so the page renders its empty state
-  }
-});
+onMounted(pull);
 
 const next = computed(() => ORDER_TRANSITIONS[status.value] ?? []);
 const nextActions = computed(() =>
@@ -60,39 +59,18 @@ const nextActions = computed(() =>
   })),
 );
 
-async function onAction(act) {
+async function onAction(act, e?: unknown) {
   if (!act.allowed) { uni.showToast({ title: '当前角色无此操作权限', icon: 'none' }); return; }
-  const ok = await new Promise<boolean>(resolve => {
-    uni.showModal({
-      title: '确认' + act.label,
-      content: '状态将从 ' + status.value + ' 变更为 ' + act.to,
-      success: r => resolve(r.confirm),
-    });
-  });
+  const ok = await new Promise<boolean>(r => uni.showModal({ title: '确认' + act.label, content: '状态将变更', success: s => r(s.confirm) }));
   if (!ok) return;
-  // capture version + remark before the network call
   const v = detail.value?.version ?? 0;
   if (!v) { uni.showToast({ title: '订单尚未加载完成', icon: 'none' }); return; }
-  try {
+  const result = await submit(async () => {
     await api_orders.updateStatus(detail.value!.no, act.to, v);
-    uni.showToast({ title: '状态已更新', icon: 'success' });
-    // re-fetch so version / logs / stock all reflect server state
-    const r = await api_orders.byId(detail.value!.no);
-    detail.value = r.data as OrderDetail;
-    status.value = (r.data as OrderDetail).statusCode;
-  } catch (err: any) {
-    // ponytail: 10009 means someone else changed the order — re-pull + tell the user to retry
-    if (err && err.code === 10009) {
-      try {
-        const r = await api_orders.byId(detail.value!.no);
-        detail.value = r.data as OrderDetail;
-        status.value = (r.data as OrderDetail).statusCode;
-      } catch {}
-      uni.showToast({ title: '状态已被他人修改，请重试', icon: 'none' });
-    } else {
-      uni.showToast({ title: err?.message || '操作失败', icon: 'none' });
-    }
-  }
+    return null;
+  });
+  if (result === null) { if (isVersionConflict((e as any)?.code)) await pull(); return; }
+  await pull();
 }
 
 const subtotal = computed(() => detail.value ? addCents(...detail.value.items.map(i => i.priceCents)) : '0');

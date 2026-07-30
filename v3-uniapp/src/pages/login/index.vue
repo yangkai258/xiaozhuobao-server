@@ -1,35 +1,25 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { loginWithCredentials } from '../../api/client';
-import IconBox from '../../components/IconBox/IconBox.vue';
+import { useSubmit } from '../../composables/useSubmit';
 
 const username = ref('');
 const password = ref('');
-const submitting = ref(false);
 const errorMsg = ref('');
+const { submitting, run } = useSubmit({ rearmMs: 3000 });
 
 async function onSubmit() {
-  if (submitting.value) return;
-  if (!username.value.trim() || !password.value) {
-    errorMsg.value = '请填写用户名和密码';
-    return;
-  }
+  if (!username.value.trim() || !password.value) { errorMsg.value = '请填写用户名和密码'; return; }
   errorMsg.value = '';
-  submitting.value = true;
-  try {
+  const ok = await run(async () => {
     await loginWithCredentials(username.value.trim(), password.value);
     uni.showToast({ title: '登录成功', icon: 'success' });
-    const pages = (typeof getCurrentPages === 'function' ? getCurrentPages() : []) as Array<unknown>;
-    if (pages.length > 1) {
-      uni.navigateBack();
-    } else {
-      uni.reLaunch({ url: '/pages/index/index' });
-    }
-  } catch (err: any) {
-    errorMsg.value = err?.message || '登录失败，请重试';
-  } finally {
-    submitting.value = false;
-  }
+    const pages = (typeof getCurrentPages === 'function' ? getCurrentPages() : []) as unknown[];
+    if (pages.length > 1) setTimeout(() => uni.navigateBack(), 400);
+    else setTimeout(() => uni.reLaunch({ url: '/pages/index/index' }), 400);
+    return true;
+  });
+  if (ok === true) password.value = '';
 }
 </script>
 
