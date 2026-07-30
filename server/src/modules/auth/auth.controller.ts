@@ -1,5 +1,6 @@
 import { Body, Controller, Get, HttpCode, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
@@ -13,6 +14,8 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Public()
+  // ponytail: v3.0.3 hardening ticket #1 - brute force defense, 5 attempts / minute / IP.
+  @Throttle({ global: { limit: 5, ttl: 60_000 } })
   @Post('login')
   @HttpCode(200)
   @ApiOperation({ summary: '账号密码登录' })
@@ -21,6 +24,8 @@ export class AuthController {
   }
 
   @Public()
+  // ponytail: v3.0.3 hardening ticket #1 - 10 refreshes / minute / IP.
+  @Throttle({ global: { limit: 10, ttl: 60_000 } })
   @Post('refresh')
   @HttpCode(200)
   @ApiOperation({ summary: '刷新访问令牌' })

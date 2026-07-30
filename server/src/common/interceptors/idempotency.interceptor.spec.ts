@@ -2,6 +2,20 @@ import { createHash } from 'node:crypto';
 import { firstValueFrom, of, throwError } from 'rxjs';
 import { Prisma } from '@prisma/client';
 import { IdempotencyInterceptor } from './idempotency.interceptor';
+import { RedisService } from '../../infra/redis/redis.service';
+
+function makeRedis(): RedisService {
+  return {
+    isEnabled: () => false,
+    tryAcquireIdempotencyLock: async () => true,
+    releaseIdempotencyLock: async () => undefined,
+    get: async () => null,
+    set: async () => undefined,
+    del: async () => undefined,
+    incr: async () => 1,
+    assertRateLimit: async () => undefined,
+  } as unknown as RedisService;
+}
 
 function p2002(): Prisma.PrismaClientKnownRequestError {
   return new Prisma.PrismaClientKnownRequestError('unique violation', { code: 'P2002', clientVersion: 'test' });
@@ -77,7 +91,7 @@ describe('IdempotencyInterceptor', () => {
         deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
     };
-    const interceptor = new IdempotencyInterceptor(prisma as never, { recordIdempotencyReplay: jest.fn() } as never);
+    const interceptor = new IdempotencyInterceptor(prisma as never, makeRedis(), { recordIdempotencyReplay: jest.fn() } as never);
     const res = makeRes();
 
     const next1 = { handle: jest.fn(() => of({ ok: true, n: 1 })) };
@@ -119,7 +133,7 @@ describe('IdempotencyInterceptor', () => {
         deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
     };
-    const interceptor = new IdempotencyInterceptor(prisma as never, { recordIdempotencyReplay: jest.fn() } as never);
+    const interceptor = new IdempotencyInterceptor(prisma as never, makeRedis(), { recordIdempotencyReplay: jest.fn() } as never);
     const res = makeRes();
     const next = { handle: jest.fn(() => of({ shouldNotRun: true })) };
 
@@ -139,7 +153,7 @@ describe('IdempotencyInterceptor', () => {
         deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
     };
-    const interceptor = new IdempotencyInterceptor(prisma as never, { recordIdempotencyReplay: jest.fn() } as never);
+    const interceptor = new IdempotencyInterceptor(prisma as never, makeRedis(), { recordIdempotencyReplay: jest.fn() } as never);
     const res = makeRes();
     res.statusCode = 500;
     const next = { handle: () => throwError(() => new Error('downstream boom')) };
@@ -151,4 +165,31 @@ describe('IdempotencyInterceptor', () => {
       where: { key: '11111111-2222-4333-8444-555555555555', statusCode: -1 },
     });
   });
+  // ponytail: v3.0.3 hardening ticket #8 - 40000 for missing key, 40001 for malformed key.
+  // The interceptor throws synchronously inside intercept(), so wrap the call in
+  // expect(() => fn).toThrow rather than subscribing to the resulting Observable.
+  function makeReqWithKey(key: string | undefined) {
+    return {
+      method: 'POST',
+      path: '/orders',
+      header: (name: string) => (name === 'Idempotency-Key' ? key : undefined),
+      user: { id: 'u1' },
+      body: { foo: 'bar' },
+    };
+  }
+
+  it('throws 40000 when Idempotency-Key header is missing', () => {
+    const interceptor = new IdempotencyInterceptor({ idempotencyRecord: { findUnique: jest.fn() } } as never, makeRedis(), { recordIdempotencyReplay: jest.fn() } as never);
+    expect(() => interceptor.intercept(makeContext(makeReqWithKey(undefined), makeRes()), { handle: jest.fn() } as never)).toThrow(expect.objectContaining({ code: 40000 }));
+  });
+
+  it('throws 40001 when Idempotency-Key is shorter than 8 characters', () => {
+    const interceptor = new IdempotencyInterceptor({ idempotencyRecord: { findUnique: jest.fn() } } as never, makeRedis(), { recordIdempotencyReplay: jest.fn() } as never);
+    expect(() => interceptor.intercept(makeContext(makeReqWithKey('abc'), makeRes()), { handle: jest.fn() } as never)).toThrow(expect.objectContaining({ code: 40001 }));
+  });
+
+  it('throws 40001 when Idempotency-Key is not UUID v4', () => {
+    const interceptor = new IdempotencyInterceptor({ idempotencyRecord: { findUnique: jest.fn() } } as never, makeRedis(), { recordIdempotencyReplay: jest.fn() } as never);
+    expect(() => interceptor.intercept(makeContext(makeReqWithKey('12345678-dead-beef-cafe-badbaadbaad'), makeRes()), { handle: jest.fn() } as never)).toThrow(expect.objectContaining({ code: 40001 }));
+  });;
 });

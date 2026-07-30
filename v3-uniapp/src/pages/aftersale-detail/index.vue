@@ -3,6 +3,9 @@ import { ref, computed, onMounted } from 'vue';
 import IconBox from '../../components/IconBox/IconBox.vue';
 import StatusTag from '../../components/StatusTag/StatusTag.vue';
 import { api_aftersales } from '../../api/client';
+import { useSubmit } from '../../composables/useSubmit';
+import { isVersionConflict, BizError } from '../../utils/error';
+import { useRetry } from '../../composables/useRetry';
 
 type AftersaleDetail = {
   id: string;
@@ -23,19 +26,17 @@ type AftersaleDetail = {
 };
 
 const detail = ref<AftersaleDetail | null>(null);
-
-onMounted(async () => {
+const { loading, error, run: loadDetail } = useRetry();
+const { submitting, run: submit } = useSubmit();
+async function pull(){
   const pages = (typeof getCurrentPages === 'function' ? getCurrentPages() : []) as Array<{ options?: Record<string, string> }>;
-  const opts = pages.at(-1)?.options ?? {};
-  const no = opts.no || '';
-  if (!no) return;
-  try {
-    const r = await api_aftersales.byId(no);
-    detail.value = r.data as AftersaleDetail;
-  } catch {
-    // ponytail: aftersale not found or auth failed; page renders empty state
-  }
-});
+  const no = pages.at(-1)?.options?.no || '';
+  if (!no) { error.value = '售后编号缺失'; return; }
+  const r = await loadDetail(() => api_aftersales.byId(no));
+  if (r) detail.value = r.data as AftersaleDetail;
+}
+
+onMounted(pull);
 
 // ponytail: only show the action bar when the ticket is still actionable; PENDING_OA and SAP_CREATED both allow
 // transition into IN_HANDLING or REJECTED via PATCH /aftersales/:id/status (server enforces state machine)
@@ -46,39 +47,14 @@ const actionable = computed(() => {
 
 async function onAction(label: string, danger: boolean) {
   if (!detail.value) return;
-  if (label === '补充材料') {
-    // 补充材料不改状态，仅记录提示；后端无对应 endpoint
-    uni.showToast({ title: '已记录，待客户回传', icon: 'none' });
-    return;
-  }
+  if (label === '补充材料') { uni.showToast({ title: '已记录，等待客户回复', icon: 'none' }); return; }
   const target = danger ? 'REJECTED' : 'IN_HANDLING';
-  const ok = await new Promise<boolean>(resolve => {
-    uni.showModal({
-      title: '确认' + label,
-      content: '状态将从 ' + detail.value!.status + ' 变更为 ' + (target === 'IN_HANDLING' ? '处理中' : '已驳回') + (danger ? '，该操作将通知客户' : ''),
-      success: r => resolve(r.confirm),
-    });
-  });
+  const ok = await new Promise<boolean>(r => uni.showModal({ title: '确认' + label, content: '状态将变更', success: s => r(s.confirm) }));
   if (!ok) return;
   const v = detail.value.version;
-  try {
-    await api_aftersales.updateStatus(detail.value.no, target, v, danger ? '客户回退申请' : '已同意处理');
-    uni.showToast({ title: '已' + label, icon: 'success' });
-    const r = await api_aftersales.byId(detail.value.no);
-    detail.value = r.data as AftersaleDetail;
-  } catch (err: any) {
-    if (err && err.code === 10009) {
-      try {
-        const r = await api_aftersales.byId(detail.value.no);
-        detail.value = r.data as AftersaleDetail;
-      } catch {}
-      uni.showToast({ title: '状态已被他人修改，请重试', icon: 'none' });
-    } else if (err && err.code === 10008) {
-      uni.showToast({ title: '当前状态不允许此操作', icon: 'none' });
-    } else {
-      uni.showToast({ title: err?.message || '操作失败', icon: 'none' });
-    }
-  }
+  const result = await submit(async () => { await api_aftersales.updateStatus(detail.value!.no, target, v, danger ? '客户取消申请' : '已同意处理'); return null; });
+  if (result === null && !submitting.value) return;
+  await pull();
 }
 </script>
 

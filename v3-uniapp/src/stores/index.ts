@@ -4,9 +4,7 @@ import { api_workbench, api_customers, api_products, api_orders, api_aftersales,
 import type { Customer, Product, Order, FollowTask, Biz, Utility } from '../mock/data';
 
 export const useWorkbenchStore = defineStore('workbench', () => {
-  const amt = ref(0);
   const delta = ref(0);
-  const amtWeek = ref(0);
   const gmvCents = ref('0');
   const orderCount = ref('0');
   const completion = ref(0);
@@ -16,9 +14,7 @@ export const useWorkbenchStore = defineStore('workbench', () => {
   async function load() {
     try {
       const r = await api_workbench.load();
-      amt.value = r.data.amt;
       delta.value = r.data.delta;
-      amtWeek.value = r.data.amtWeek;
       gmvCents.value = r.data.gmvCents;
       orderCount.value = r.data.orderCount;
       completion.value = r.data.completion;
@@ -29,7 +25,7 @@ export const useWorkbenchStore = defineStore('workbench', () => {
     }
   }
 
-  return { amt, delta, amtWeek, gmvCents, orderCount, completion, biz, todos, load };
+  return { delta, gmvCents, orderCount, completion, biz, todos, load };
 });
 
 export const useInfoStore = defineStore('info', () => {

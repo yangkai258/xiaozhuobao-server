@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ChatMessage } from '../../types/chat';
+import type { ChatMessage, ToolCall } from '../../types/chat';
 import ToolRecog from './ToolRecog.vue';
 import ToolDraft from './ToolDraft.vue';
 import ToolKpi from './ToolKpi.vue';

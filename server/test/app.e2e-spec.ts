@@ -58,6 +58,8 @@ describe('App API', () => {
     process.env.JWT_REFRESH_TTL = '604800';
     process.env.STORAGE_LOCAL_DIR = tmpdir() + '/xzb-test-' + Date.now();
     process.env.STORAGE_PUBLIC_BASE_URL = '/api/v1/storage/files';
+    // ponytail: ticket #4 - keep REDIS_URL unset so RedisService falls back to in-process Map.
+    delete process.env.REDIS_URL;
 
     salesUser = {
       id: 'u_001',
@@ -433,8 +435,15 @@ describe('App API', () => {
     httpServer = app.getHttpServer() as Server;
   });
 
+  // ponytail: ticket #1 - throttler setTimeout queue keeps the loop alive under --forceExit.
+  // Cap app.close under 30s so the suite exits cleanly even when PrometheusExporter or an
+  // OTel batch processor holds a socket. The .catch only logs; tests already passed by then.
   afterAll(async () => {
-    await app.close();
+    let timer;
+    const ceiling = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('app.close timed out after 30s')), 30_000); });
+    try { await Promise.race([app.close(), ceiling]); }
+    catch (e) { console.warn('app.close warning:', e instanceof Error ? e.message : String(e)); }
+    finally { clearTimeout(timer); }
   });
 
   it('serves the public health endpoint with a trace id', async () => {

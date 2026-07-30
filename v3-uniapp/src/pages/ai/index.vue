@@ -1,43 +1,40 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { api_feature, api_ai } from '../../api/client';
-import { useChat } from '../../composables/useChat';
+import { useChatStore } from '../../stores/chat';
 import ChatBubble from '../../components/ChatMessage/ChatBubble.vue';
 import ChatComposer from '../../components/ChatComposer/index.vue';
 import SceneGrid from '../../components/SceneGrid/index.vue';
 import SessionDrawer from '../../components/SessionDrawer/index.vue';
 
-// ponytail: phase one feature flag check decides whether to render the chat shell or fall back to the original 6-module grid.
+const chat = useChatStore();
+const drawerOpen = ref(false);
 const aiHome = ref<boolean | null>(null);
 const fallback = ref(false);
-const { messages, isSending, send } = useChat();
-const drawerOpen = ref(false);
+const fallbackModules = ref<Array<{ id: string; num: string; name: string; desc: string; color: string }>>([]);
 
 onMounted(async () => {
-  // ponytail: page_view event — phase one goes to console; phase two ships to a real sink.
   console.log('[event] page_view', { page: '/pages/ai' });
   try {
     const r = await api_feature.get();
     aiHome.value = !!r.data.AI_HOME;
     fallback.value = !aiHome.value;
-  } catch {
-    fallback.value = true;
-    aiHome.value = false;
-  }
+  } catch { fallback.value = true; aiHome.value = false; }
   try {
     const mods = await api_ai.modules();
-    fallbackModules.value = mods.data || [];
+    fallbackModules.value = (mods.data || []) as typeof fallbackModules.value;
   } catch { fallbackModules.value = []; }
+  if (chat.sessions.length === 0) chat.newSession();
 });
 
-const fallbackModules = ref<Array<{ id: string; num: string; name: string; desc: string; color: string }>>([]);
+const messages = computed(() => chat.activeSession?.messages ?? []);
 
-function pickScene(prompt: string) {
-  void send({ prompt });
+function pickScene(prompt: string, hints: string[] = []) {
+  chat.send({ prompt, hints: hints as never });
 }
 
 function onSend(payload: { prompt: string; attachments?: any[] }) {
-  void send(payload);
+  chat.send({ prompt: payload.prompt, attachments: payload.attachments });
 }
 </script>
 
@@ -45,16 +42,13 @@ function onSend(payload: { prompt: string; attachments?: any[] }) {
   <view class="page">
     <view class="notch"><text>09:41</text><text><text class="dot" />ONLINE</text><text>v3.1</text></view>
     <view class="titlebar">
-      <view class="back"><text @click="drawerOpen = true">≡</text></view>
+      <view class="back" @click="drawerOpen = true"><text>☰</text></view>
       <text class="title">AI 对话首页</text>
       <text class="meta">{{ messages.length }} 条</text>
     </view>
 
-    <!-- ponytail: when FEATURE_AI_HOME is false, fall back to the legacy 6-module grid so older builds keep working. -->
     <view v-if="fallback" class="fallback">
-      <view class="fallback-head">
-        <text>AI 工作台（阶段一未开启）</text>
-      </view>
+      <view class="fallback-head"><text>AI 工作台</text></view>
       <view class="fallback-grid">
         <view v-for="m in fallbackModules" :key="m.id" class="fallback-card" :style="{ '--c': m.color }">
           <text class="num">{{ m.num }}</text>
@@ -71,10 +65,10 @@ function onSend(payload: { prompt: string; attachments?: any[] }) {
           <ChatBubble :message="m" />
         </view>
         <view v-if="messages.length === 0" class="empty">
-          <text>请选择一个场景，或在下方输入你的问题。</text>
+          <text>选一个场景或在下方输入问题</text>
         </view>
       </scroll-view>
-      <ChatComposer :sending="isSending" @send="onSend" />
+      <ChatComposer :sending="chat.isSending" @send="onSend" />
     </view>
 
     <SessionDrawer :open="drawerOpen" @close="drawerOpen = false" />
@@ -87,7 +81,7 @@ function onSend(payload: { prompt: string; attachments?: any[] }) {
 .titlebar { display: flex; align-items: center; padding: 4px 12px; border-bottom: 1px solid var(--c-line-soft); }
 .title { flex: 1; text-align: center; font-weight: 600; }
 .meta { font-family: var(--ff-mono); font-size: 11px; color: var(--c-mute); }
-.back text { font-size: 20px; padding: 0 8px; }
+.back text { font-size: 18px; padding: 0 8px; }
 .ai-home { display: flex; flex-direction: column; min-height: calc(100vh - 60px); }
 .messages { flex: 1; padding: 12px; min-height: 50vh; }
 .msg-wrap { margin-bottom: 12px; }
